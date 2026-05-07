@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Through Maze</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #050520;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    touch-action: none;
+}
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// ── CONSTANTS ──
+const COLORS = {
+    bg: '#0a0a2e',
+    bgOuter: '#050520',
+    wall: '#00e5ff',
+    floor: '#0e0e38',
+    player: '#ffdd00',
+    star: '#ffd700',
+    spike: '#ff3344',
+    spikeClue: 'rgba(255, 60, 70, 0.12)',
+    portal: '#cc44ff',
+    portalClue: 'rgba(180, 60, 255, 0.12)',
+    heart: '#ff4466',
+    heartEmpty: '#2a2a50',
+    text: '#ffffff'
+};
+
+const STATE = { TITLE: 0, PLAYING: 1, TRAP_HIT: 2, WIN: 3, GAME_OVER: 4 };
+
+// ── AUDIO ──
+let audioCtx;
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function beep(freq, dur, type = 'square', vol = 0.08) {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol;
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+}
+function sndMove() { beep(520, 0.04, 'sine', 0.04); }
+function sndSpike() { beep(120, 0.35, 'sawtooth', 0.12); }
+function sndPortal() {
+    beep(700, 0.15, 'sine', 0.08);
+    setTimeout(() => beep(400, 0.2, 'sine', 0.08), 100);
+}
+function sndWin() {
+    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.25, 'sine', 0.1), i * 120));
+}
+function sndSecret() { beep(880, 0.1, 'sine', 0.06); beep(1100, 0.1, 'sine', 0.06); }
+
+// ── PARTICLES ──
+const particles = [];
+function spawnP(x, y, color, count, speed = 100, life = 1, size = 3) {
+    for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2, s = Math.random() * speed;
+        particles.push({
+            x, y, color,
+            vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+            life: life * (0.5 + Math.random() * 0.5),
+            maxLife: life, size: size * (0.5 + Math.random())
+        });
+    }
+}
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.vy += 40 * dt; // slight gravity
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+function drawParticles() {
+    for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+// ── DRAW HELPERS ──
+function drawStar5(x, y, outerR, innerR, color, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 15;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? outerR : innerR;
+        const a = (i * Math.PI / 5) - Math.PI / 2;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+}
+
+function drawSpikeTrap(x, y, size) {
+    ctx.fillStyle = COLORS.spike;
+    ctx.shadowColor = COLORS.spike;
+    ctx.shadowBlur = 8;
+    // Three small triangles
+    for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + i * size * 0.6, y - size * 0.5);
+        ctx.lineTo(x + i * size * 0.6 - size * 0.25, y + size * 0.4);
+        ctx.lineTo(x + i * size * 0.6 + size * 0.25, y + size * 0.4);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+}
+
+function drawPortalTrap(x, y, size, time) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = COLORS.portal;
+    ctx.shadowColor = COLORS.portal;
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+        const a = time * 3 + i * Math.PI * 2 / 3;
+        const r = size * (0.4 + Math.sin(a + time) * 0.15);
+        ctx.beginPath();
+        ctx.arc(0, 0, r, a, a + Math.PI * 0.8);
+        ctx.stroke();
+    }
+    // Center dot
+    ctx.fillStyle = COLORS.portal;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+}
+
+// ── MAZE ──
+class Maze {
+    constructor(cols, rows) {
+        this.cols = cols;
+        this.rows = rows;
+        this.cells = [];
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                this.cells.push({
+                    x, y,
+                    walls: { top: true, right: true, bottom: true, left: true },
+                    visited: false,
+                    trap: null,
+                    clue: null,
+                    fakeWall: null // direction of fake wall if any
+                });
+            }
+        }
+        this.fakeWalls = []; // [{x, y, dir}] pairs
+        this.solutionPath = null;
+    }
+
+    cell(x, y) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return null;
+        return this.cells[y * this.cols + x];
+    }
+
+    generate() {
+        const stack = [];
+        const start = this.cell(0, 0);
+        start.visited = true;
+        stack.push(start);
+        while (stack.length > 0) {
+            const cur = stack[stack.length - 1];
+            const nbrs = this._unvisitedNeighbors(cur);
+            if (nbrs.length === 0) {
+                stack.pop();
+            } else {
+                const next = nbrs[Math.floor(Math.random() * nbrs.length)];
+                this._removeWall(cur, next);
+                next.visited = true;
+                stack.push(next);
+            }
+        }
+        this.cells.forEach(c => c.visited = false);
+    }
+
+    _unvisitedNeighbors(c) {
+        return [
+            this.cell(c.x, c.y - 1),
+            this.cell(c.x + 1, c.y),
+            this.cell(c.x, c.y + 1),
+            this.cell(c.x - 1, c.y)
+        ].filter(n => n && !n.visited);
+    }
+
+    _removeWall(a, b) {
+        const dx = b.x - a.x, dy = b.y - a.y;
+        if (dx === 1) { a.walls.right = false; b.walls.left = false; }
+        if (dx === -1) { a.walls.left = false; b.walls.right = false; }
+        if (dy === 1) { a.walls.bottom = false; b.walls.top = false; }
+        if (dy === -1) { a.walls.top = false; b.walls.bottom = false; }
+    }
+
+    // BFS shortest path
+    findPath(sx, sy, ex, ey) {
+        const visited = new Set();
+        const q = [{ x: sx, y: sy, path: [{ x: sx, y: sy }] }];
+        visited.add(`${sx},${sy}`);
+        const dirs = [
+            { dx: 0, dy: -1, w: 'top' }, { dx: 1, dy: 0, w: 'right' },
+            { dx: 0, dy: 1, w: 'bottom' }, { dx: -1, dy: 0, w: 'left' }
+        ];
+        while (q.length > 0) {
+            const { x, y, path } = q.shift();
+            if (x === ex && y === ey) return path;
+            const c = this.cell(x, y);
+            for (const d of dirs) {
+                const nx = x + d.dx, ny = y + d.dy, key = `${nx},${ny}`;
+                if (!c.walls[d.w] && !visited.has(key)) {
+                    visited.add(key);
+                    q.push({ x: nx, y: ny, path: [...path, { x: nx, y: ny }] });
+                }
+            }
+        }
+        return null;
+    }
+
+    canMove(x, y, dir) {
+        const c = this.cell(x, y);
+        if (!c) return false;
+        if (!c.walls[dir]) return true;
+        // Check for fake wall
+        for (const fw of this.fakeWalls) {
+            if (fw.x === x && fw.y === y && fw.dir === dir) return true;
+        }
+        return false;
+    }
+
+    isFakeWall(x, y, dir) {
+        return this.fakeWalls.some(fw => fw.x === x && fw.y === y && fw.dir === dir);
+    }
+
+    placeTraps(level) {
+        const path = this.findPath(0, 0, this.cols - 1, this.rows - 1);
+        if (!path) return;
+        this.solutionPath = path;
+        const pathSet = new Set(path.map(p => `${p.x},${p.y}`));
+
+        // Candidates: cells NOT on solution path, not start/end
+        const candidates = this.cells.filter(c =>
+            !pathSet.has(`${c.x},${c.y}`) &&
+            !(c.x === 0 && c.y === 0) &&
+            !(c.x === this.cols - 1 && c.y === this.rows - 1)
+        );
+        // Shuffle
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        const numSpikes = Math.min(2 + level, Math.floor(candidates.length * 0.12));
+        const numPortals = Math.min(1 + Math.floor(level / 2), Math.floor(candidates.length * 0.08));
+
+        let idx = 0;
+        for (let i = 0; i < numSpikes && idx < candidates.length; i++, idx++) {
+            candidates[idx].trap = 'spike';
+        }
+        for (let i = 0; i < numPortals && idx < candidates.length; i++, idx++) {
+            candidates[idx].trap = 'portal';
+        }
+
+        // Place clues on accessible neighbors of traps
+        const dirs = [
+            { dx: 0, dy: -1, w: 'top' }, { dx: 1, dy: 0, w: 'right' },
+            { dx: 0, dy: 1, w: 'bottom' }, { dx: -1, dy: 0, w: 'left' }
+        ];
+        for (const c of this.cells) {
+            if (!c.trap) continue;
+            for (const d of dirs) {
+                const n = this.cell(c.x + d.dx, c.y + d.dy);
+                if (n && !n.trap && !c.walls[d.w]) {
+                    n.clue = c.trap;
+                }
+            }
+        }
+
+        // Fake walls (secret passages)
+        const numFake = Math.min(1 + level, 5);
+        let placed = 0;
+        const shuffled = [...this.cells].sort(() => Math.random() - 0.5);
+        const oppDir = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+        const dirDelta = {
+            right: { dx: 1, dy: 0 }, bottom: { dx: 0, dy: 1 },
+            left: { dx: -1, dy: 0 }, top: { dx: 0, dy: -1 }
+        };
+
+        for (const c of shuffled) {
+            if (placed >= numFake) break;
+            for (const dir of ['right', 'bottom']) {
+                if (placed >= numFake) break;
+                if (!c.walls[dir]) continue; // already open
+                const dd = dirDelta[dir];
+                const n = this.cell(c.x + dd.dx, c.y + dd.dy);
+                if (!n) continue;
+                // Don't put fake walls adjacent to start or end
+                if ((c.x === 0 && c.y === 0) || (n.x === 0 && n.y === 0)) continue;
+                if ((c.x === this.cols-1 && c.y === this.rows-1) || (n.x === this.cols-1 && n.y === this.rows-1)) continue;
+                this.fakeWalls.push({ x: c.x, y: c.y, dir: dir });
+                this.fakeWalls.push({ x: n.x, y: n.y, dir: oppDir[dir] });
+                placed++;
+            }
+        }
+    }
+}
+
+// ── GAME ──
+const game = {
+    state: STATE.TITLE,
+    level: 1,
+    lives: 3,
+    maxLives: 3,
+    maze: null,
+    px: 0, py: 0,           // player grid position
+    dx: 0, dy: 0,           // display position (smooth)
+    animating: false,
+    visited: new Set(),
+    cellSize: 0,
+    ox: 0, oy: 0,           // maze draw offset
+    shake: 0,
+    time: 0,
+    trapTimer: 0,
+    trapType: null,
+    winTime: 0,
+    trail: []               // recent positions for trail effect
+};
+
+function startLevel() {
+    const size = Math.min(6 + game.level * 2, 16);
+    game.maze = new Maze(size, size);
+    game.maze.generate();
+    game.maze.placeTraps(game.level);
+    game.px = 0; game.py = 0;
+    game.dx = 0; game.dy = 0;
+    game.animating = false;
+    game.visited = new Set(['0,0']);
+    game.lives = game.maxLives;
+    game.trail = [];
+    game.state = STATE.PLAYING;
+    calcLayout();
+}
+
+function calcLayout() {
+    const pad = 20;
+    const hud = 55;
+    const aw = canvas.width - pad * 2;
+    const ah = canvas.height - pad - hud;
+    game.cellSize = Math.floor(Math.min(aw / game.maze.cols, ah / game.maze.rows));
+    const mw = game.cellSize * game.maze.cols;
+    const mh = game.cellSize * game.maze.rows;
+    game.ox = Math.floor((canvas.width - mw) / 2);
+    game.oy = hud + Math.floor((canvas.height - hud - mh) / 2);
+}
+
+function cellCenter(cx, cy) {
+    return {
+        x: game.ox + cx * game.cellSize + game.cellSize / 2,
+        y: game.oy + cy * game.cellSize + game.cellSize / 2
+    };
+}
+
+function tryMove(mdx, mdy) {
+    if (game.state !== STATE.PLAYING || game.animating) return;
+    const dir = mdx === 1 ? 'right' : mdx === -1 ? 'left' : mdy === 1 ? 'bottom' : 'top';
+
+    if (!game.maze.canMove(game.px, game.py, dir)) return;
+
+    const nx = game.px + mdx, ny = game.py + mdy;
+    if (nx < 0 || nx >= game.maze.cols || ny < 0 || ny >= game.maze.rows) return;
+
+    // Track trail
+    game.trail.push({ x: game.px, y: game.py, t: game.time });
+    if (game.trail.length > 8) game.trail.shift();
+
+    // Secret passage?
+    if (game.maze.isFakeWall(game.px, game.py, dir)) {
+        sndSecret();
+        const pos = cellCenter(game.px, game.py);
+        spawnP(pos.x, pos.y, '#44ffaa', 12, 80, 0.6, 2);
+    } else {
+        sndMove();
+    }
+
+    game.px = nx; game.py = ny;
+    game.animating = true;
+    game.visited.add(`${nx},${ny}`);
+
+    // Check traps
+    const c = game.maze.cell(nx, ny);
+    if (c.trap === 'spike') hitSpike();
+    else if (c.trap === 'portal') hitPortal();
+
+    // Check win
+    if (nx === game.maze.cols - 1 && ny === game.maze.rows - 1) win();
+}
+
+function hitSpike() {
+    game.lives--;
+    game.shake = 15;
+    game.state = STATE.TRAP_HIT;
+    game.trapType = 'spike';
+    game.trapTimer = 0.8;
+    sndSpike();
+    const pos = cellCenter(game.px, game.py);
+    spawnP(pos.x, pos.y, '#ff3344', 30, 150, 1, 4);
+
+    if (game.lives <= 0) {
+        game.state = STATE.GAME_OVER;
+        return;
+    }
+
+    setTimeout(() => {
+        game.px = 0; game.py = 0;
+        game.dx = 0; game.dy = 0;
+        game.animating = false;
+        game.trail = [];
+        if (game.state === STATE.TRAP_HIT) game.state = STATE.PLAYING;
+    }, 800);
+}
+
+function hitPortal() {
+    game.state = STATE.TRAP_HIT;
+    game.trapType = 'portal';
+    game.trapTimer = 0.7;
+    sndPortal();
+    const pos = cellCenter(game.px, game.py);
+    spawnP(pos.x, pos.y, '#cc44ff', 25, 120, 0.8, 3);
+
+    const safe = game.maze.cells.filter(c =>
+        !c.trap && !(c.x === 0 && c.y === 0) &&
+        !(c.x === game.maze.cols - 1 && c.y === game.maze.rows - 1)
+    );
+    const target = safe[Math.floor(Math.random() * safe.length)];
+
+    setTimeout(() => {
+        game.px = target.x; game.py = target.y;
+        game.dx = target.x; game.dy = target.y;
+        game.visited.add(`${target.x},${target.y}`);
+        game.animating = false;
+        game.trail = [];
+        if (game.state === STATE.TRAP_HIT) game.state = STATE.PLAYING;
+        const np = cellCenter(target.x, target.y);
+        spawnP(np.x, np.y, '#cc44ff', 20, 100, 0.6, 3);
+    }, 600);
+}
+
+function win() {
+    game.state = STATE.WIN;
+    game.winTime = 0;
+    sndWin();
+    const pos = cellCenter(game.px, game.py);
+    for (const color of ['#ffd700', '#ff6b6b', '#51cf66', '#339af0', '#cc5de8', '#ff922b']) {
+        spawnP(pos.x, pos.y, color, 15, 200, 2, 5);
+    }
+}
+
+// ── RESIZE ──
+function resize() {
+    const maxW = window.innerWidth;
+    const maxH = window.innerHeight;
+    const size = Math.min(maxW, maxH, 750);
+    canvas.width = size;
+    canvas.height = size;
+    if (game.maze) calcLayout();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── INPUT ──
+const keys = {};
+document.addEventListener('keydown', e => {
+    if (keys[e.code]) return;
+    keys[e.code] = true;
+    initAudio();
+
+    if (game.state === STATE.TITLE) {
+        if (e.code === 'Enter' || e.code === 'Space') { startLevel(); }
+        return;
+    }
+    if (game.state === STATE.WIN) {
+        if (e.code === 'Enter' || e.code === 'Space') {
+            game.level++;
+            startLevel();
+        }
+        return;
+    }
+    if (game.state === STATE.GAME_OVER) {
+        if (e.code === 'Enter' || e.code === 'Space') {
+            game.level = 1;
+            startLevel();
+        }
+        return;
+    }
+
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') tryMove(0, -1);
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') tryMove(0, 1);
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') tryMove(-1, 0);
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') tryMove(1, 0);
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// Swipe support
+let touchX, touchY;
+canvas.addEventListener('touchstart', e => {
+    initAudio();
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+    e.preventDefault();
+});
+canvas.addEventListener('touchend', e => {
+    const ex = e.changedTouches[0].clientX, ey = e.changedTouches[0].clientY;
+    const ddx = ex - touchX, ddy = ey - touchY;
+    const thresh = 25;
+
+    if (game.state === STATE.TITLE || game.state === STATE.WIN || game.state === STATE.GAME_OVER) {
+        if (Math.abs(ddx) < thresh && Math.abs(ddy) < thresh) {
+            if (game.state === STATE.TITLE) startLevel();
+            else if (game.state === STATE.WIN) { game.level++; startLevel(); }
+            else { game.level = 1; startLevel(); }
+        }
+        return;
+    }
+
+    if (Math.abs(ddx) > Math.abs(ddy)) {
+        if (ddx > thresh) tryMove(1, 0);
+        else if (ddx < -thresh) tryMove(-1, 0);
+    } else {
+        if (ddy > thresh) tryMove(0, 1);
+        else if (ddy < -thresh) tryMove(0, -1);
+    }
+    e.preventDefault();
+});
+
+// ── UPDATE ──
+function update(dt) {
+    game.time += dt;
+
+    // Smooth movement
+    const spd = 12;
+    game.dx += (game.px - game.dx) * Math.min(1, spd * dt);
+    game.dy += (game.py - game.dy) * Math.min(1, spd * dt);
+    if (Math.abs(game.dx - game.px) < 0.01 && Math.abs(game.dy - game.py) < 0.01) {
+        game.dx = game.px; game.dy = game.py;
+        game.animating = false;
+    }
+
+    // Shake decay
+    game.shake *= Math.max(0, 1 - dt * 8);
+    if (game.shake < 0.1) game.shake = 0;
+
+    // Trap timer
+    if (game.trapTimer > 0) game.trapTimer -= dt;
+
+    // Win confetti
+    if (game.state === STATE.WIN) {
+        game.winTime += dt;
+        if (Math.random() < dt * 8) {
+            const x = Math.random() * canvas.width;
+            const colors = ['#ffd700', '#ff6b6b', '#51cf66', '#339af0', '#cc5de8', '#ff922b'];
+            spawnP(x, 0, colors[Math.floor(Math.random() * colors.length)], 2, 60, 2.5, 4);
+        }
+    }
+
+    // Star sparkle
+    if (game.state === STATE.PLAYING && game.maze) {
+        const sp = cellCenter(game.maze.cols - 1, game.maze.rows - 1);
+        if (Math.random() < dt * 4) {
+            spawnP(
+                sp.x + (Math.random() - 0.5) * game.cellSize * 0.4,
+                sp.y + (Math.random() - 0.5) * game.cellSize * 0.4,
+                '#ffd700', 1, 25, 0.7, 2
+            );
+        }
+    }
+
+    updateParticles(dt);
+}
+
+// ── RENDER ──
+function render() {
+    ctx.save();
+    if (game.shake > 0) {
+        ctx.translate(
+            (Math.random() - 0.5) * game.shake * 2,
+            (Math.random() - 0.5) * game.shake * 2
+        );
+    }
+
+    // Background
+    const bg = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, 0,
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.7
+    );
+    bg.addColorStop(0, '#0e0e3a');
+    bg.addColorStop(1, '#050520');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (game.state === STATE.TITLE) renderTitle();
+    else {
+        renderMaze();
+        renderHUD();
+        if (game.state === STATE.WIN) renderWin();
+        if (game.state === STATE.GAME_OVER) renderGameOver();
+    }
+
+    drawParticles();
+    ctx.restore();
+}
+
+function renderTitle() {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const pulse = Math.sin(game.time * 2) * 0.3 + 0.7;
+    const s = canvas.width;
+
+    // Decorative maze lines in background
+    ctx.globalAlpha = 0.08;
+    ctx.strokeStyle = COLORS.wall;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 12; i++) {
+        const x = (i / 12) * s;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, s); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, x); ctx.lineTo(s, x); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Title
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 25 * pulse;
+    ctx.fillStyle = '#00e5ff';
+    ctx.font = `bold ${s * 0.08}px Arial`;
+    ctx.fillText('THROUGH', cx, cy - s * 0.12);
+
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 25 * pulse;
+    ctx.fillStyle = '#ffd700';
+    ctx.font = `bold ${s * 0.14}px Arial`;
+    ctx.fillText('MAZE', cx, cy + s * 0.02);
+    ctx.shadowBlur = 0;
+
+    // Star
+    drawStar5(cx, cy + s * 0.14, s * 0.035, s * 0.015, '#ffd700', game.time * 0.5);
+
+    // Subtitle
+    const subAlpha = 0.4 + Math.sin(game.time * 3) * 0.3;
+    ctx.fillStyle = `rgba(255, 255, 255, ${subAlpha})`;
+    ctx.font = `${s * 0.028}px Arial`;
+    ctx.fillText('Press ENTER or SPACE to start', cx, cy + s * 0.24);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.font = `${s * 0.022}px Arial`;
+    ctx.fillText('Arrow keys or WASD to move', cx, cy + s * 0.30);
+
+    // Floating particles
+    if (Math.random() < 0.15) {
+        spawnP(
+            Math.random() * canvas.width,
+            Math.random() * canvas.height,
+            Math.random() > 0.5 ? '#00e5ff' : '#ffd700',
+            1, 20, 2, 2
+        );
+    }
+}
+
+function renderMaze() {
+    const m = game.maze;
+    const cs = game.cellSize;
+    const ox = game.ox, oy = game.oy;
+    const visRadius = 4;
+
+    // Draw cells
+    for (const c of m.cells) {
+        const cx = ox + c.x * cs;
+        const cy = oy + c.y * cs;
+
+        // Visibility
+        const dist = Math.abs(c.x - game.px) + Math.abs(c.y - game.py);
+        let alpha = 1;
+        if (dist > visRadius) {
+            alpha = game.visited.has(`${c.x},${c.y}`) ? 0.25 : 0;
+        } else if (dist === visRadius) {
+            alpha = 0.5;
+        } else if (dist === visRadius - 1) {
+            alpha = 0.75;
+        }
+        if (alpha <= 0) continue;
+
+        ctx.globalAlpha = alpha;
+
+        // Floor
+        ctx.fillStyle = COLORS.floor;
+        ctx.fillRect(cx + 1, cy + 1, cs - 2, cs - 2);
+
+        // Clue tint
+        if (c.clue === 'spike') {
+            ctx.fillStyle = COLORS.spikeClue;
+            ctx.fillRect(cx + 1, cy + 1, cs - 2, cs - 2);
+            // Small warning marks
+            ctx.fillStyle = 'rgba(255, 60, 70, 0.25)';
+            const d = cs * 0.08;
+            ctx.fillRect(cx + cs * 0.3, cy + cs * 0.3, d, d);
+            ctx.fillRect(cx + cs * 0.6, cy + cs * 0.6, d, d);
+            ctx.fillRect(cx + cs * 0.3, cy + cs * 0.6, d, d);
+            ctx.fillRect(cx + cs * 0.6, cy + cs * 0.3, d, d);
+        } else if (c.clue === 'portal') {
+            ctx.fillStyle = COLORS.portalClue;
+            ctx.fillRect(cx + 1, cy + 1, cs - 2, cs - 2);
+        }
+
+        // Trap visuals
+        if (c.trap === 'spike') {
+            drawSpikeTrap(cx + cs / 2, cy + cs / 2, cs * 0.3);
+        } else if (c.trap === 'portal') {
+            drawPortalTrap(cx + cs / 2, cy + cs / 2, cs * 0.3, game.time);
+        }
+
+        // Star (goal)
+        if (c.x === m.cols - 1 && c.y === m.rows - 1) {
+            const starPulse = 1 + Math.sin(game.time * 3) * 0.15;
+            drawStar5(cx + cs / 2, cy + cs / 2, cs * 0.3 * starPulse, cs * 0.13 * starPulse, '#ffd700', game.time * 0.5);
+        }
+
+        // Start marker
+        if (c.x === 0 && c.y === 0) {
+            ctx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+            ctx.fillRect(cx + 1, cy + 1, cs - 2, cs - 2);
+            ctx.fillStyle = 'rgba(0, 229, 255, 0.5)';
+            ctx.font = `bold ${cs * 0.3}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('GO', cx + cs / 2, cy + cs / 2);
+        }
+    }
+
+    ctx.globalAlpha = 1;
+
+    // Draw walls
+    ctx.strokeStyle = COLORS.wall;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = COLORS.wall;
+    ctx.shadowBlur = 6;
+
+    // Outer border
+    const mw = m.cols * cs, mh = m.rows * cs;
+    ctx.strokeRect(ox, oy, mw, mh);
+
+    // Internal walls - only draw right and bottom to avoid doubles
+    for (const c of m.cells) {
+        const cx = ox + c.x * cs;
+        const cy = oy + c.y * cs;
+
+        // Visibility for walls - use max of adjacent cells
+        const dist = Math.abs(c.x - game.px) + Math.abs(c.y - game.py);
+        let alpha = 1;
+        if (dist > visRadius + 1) {
+            alpha = game.visited.has(`${c.x},${c.y}`) ? 0.25 : 0;
+        } else if (dist > visRadius) {
+            alpha = 0.4;
+        }
+        if (alpha <= 0) continue;
+        ctx.globalAlpha = alpha;
+
+        // Right wall
+        if (c.x < m.cols - 1 && c.walls.right) {
+            if (m.isFakeWall(c.x, c.y, 'right')) {
+                // Fake wall - subtle visual difference
+                ctx.strokeStyle = `rgba(0, 229, 255, ${0.2 + Math.sin(game.time * 4 + c.x * 3 + c.y * 7) * 0.1})`;
+                ctx.setLineDash([3, 5]);
+            } else {
+                ctx.strokeStyle = COLORS.wall;
+                ctx.setLineDash([]);
+            }
+            ctx.beginPath();
+            ctx.moveTo(cx + cs, cy);
+            ctx.lineTo(cx + cs, cy + cs);
+            ctx.stroke();
+        }
+
+        // Bottom wall
+        if (c.y < m.rows - 1 && c.walls.bottom) {
+            if (m.isFakeWall(c.x, c.y, 'bottom')) {
+                ctx.strokeStyle = `rgba(0, 229, 255, ${0.2 + Math.sin(game.time * 4 + c.x * 7 + c.y * 3) * 0.1})`;
+                ctx.setLineDash([3, 5]);
+            } else {
+                ctx.strokeStyle = COLORS.wall;
+                ctx.setLineDash([]);
+            }
+            ctx.beginPath();
+            ctx.moveTo(cx, cy + cs);
+            ctx.lineTo(cx + cs, cy + cs);
+            ctx.stroke();
+        }
+    }
+
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    // Fog overlay for unexplored cells
+    for (const c of m.cells) {
+        const dist = Math.abs(c.x - game.px) + Math.abs(c.y - game.py);
+        let fogAlpha = 0;
+        if (dist > visRadius) {
+            fogAlpha = game.visited.has(`${c.x},${c.y}`) ? 0.7 : 0.95;
+        } else if (dist === visRadius) {
+            fogAlpha = 0.35;
+        } else if (dist === visRadius - 1) {
+            fogAlpha = 0.1;
+        }
+        if (fogAlpha > 0) {
+            ctx.fillStyle = `rgba(5, 5, 32, ${fogAlpha})`;
+            ctx.fillRect(
+                ox + c.x * cs - 1,
+                oy + c.y * cs - 1,
+                cs + 2, cs + 2
+            );
+        }
+    }
+
+    // Player trail
+    for (const t of game.trail) {
+        const age = game.time - t.t;
+        const a = Math.max(0, 0.3 - age * 0.4);
+        if (a <= 0) continue;
+        ctx.globalAlpha = a;
+        ctx.fillStyle = COLORS.player;
+        const tp = cellCenter(t.x, t.y);
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, cs * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Player
+    const px = ox + game.dx * cs + cs / 2;
+    const py = oy + game.dy * cs + cs / 2;
+    const pr = cs * 0.28;
+
+    // Player glow
+    const glowR = pr * (1.5 + Math.sin(game.time * 4) * 0.2);
+    const glow = ctx.createRadialGradient(px, py, 0, px, py, glowR);
+    glow.addColorStop(0, 'rgba(255, 221, 0, 0.4)');
+    glow.addColorStop(1, 'rgba(255, 221, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(px, py, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Player body
+    ctx.shadowColor = COLORS.player;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = COLORS.player;
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Player highlight
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(px - pr * 0.2, py - pr * 0.2, pr * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function renderHUD() {
+    const hud = 50;
+    ctx.fillStyle = 'rgba(5, 5, 32, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, hud);
+
+    // Hearts
+    const heartSize = 20;
+    const heartY = hud / 2;
+    for (let i = 0; i < game.maxLives; i++) {
+        const heartX = 25 + i * (heartSize + 8);
+        ctx.fillStyle = i < game.lives ? COLORS.heart : COLORS.heartEmpty;
+        ctx.shadowColor = i < game.lives ? COLORS.heart : 'transparent';
+        ctx.shadowBlur = i < game.lives ? 8 : 0;
+        ctx.font = `${heartSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('\u2665', heartX, heartY);
+    }
+    ctx.shadowBlur = 0;
+
+    // Level
+    ctx.fillStyle = COLORS.text;
+    ctx.font = `bold ${16}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`Level ${game.level}`, canvas.width / 2, heartY);
+
+    // Legend hints
+    ctx.font = `${11}px Arial`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255, 200, 200, 0.5)';
+    ctx.fillText('\u26a0 = danger nearby', canvas.width - 15, heartY - 7);
+    ctx.fillStyle = 'rgba(200, 200, 255, 0.5)';
+    ctx.fillText('dim walls = secret!', canvas.width - 15, heartY + 9);
+}
+
+function renderWin() {
+    // Overlay
+    const a = Math.min(0.7, game.winTime * 2);
+    ctx.fillStyle = `rgba(5, 5, 32, ${a})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (game.winTime < 0.3) return;
+
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const s = canvas.width;
+
+    // Stars based on remaining lives
+    const starCount = game.lives;
+    const starY = cy - s * 0.03;
+    for (let i = 0; i < game.maxLives; i++) {
+        const sx = cx + (i - (game.maxLives - 1) / 2) * s * 0.08;
+        const filled = i < starCount;
+        drawStar5(sx, starY, s * 0.025, s * 0.01,
+            filled ? '#ffd700' : 'rgba(100, 100, 100, 0.4)',
+            filled ? game.time * 0.3 + i : 0
+        );
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.shadowColor = '#51cf66';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#51cf66';
+    ctx.font = `bold ${s * 0.07}px Arial`;
+    ctx.fillText('LEVEL COMPLETE!', cx, cy - s * 0.12);
+    ctx.shadowBlur = 0;
+
+    const subA = 0.4 + Math.sin(game.time * 3) * 0.3;
+    ctx.fillStyle = `rgba(255, 255, 255, ${subA})`;
+    ctx.font = `${s * 0.03}px Arial`;
+    ctx.fillText('Press ENTER or SPACE for next level', cx, cy + s * 0.08);
+}
+
+function renderGameOver() {
+    ctx.fillStyle = 'rgba(30, 5, 5, 0.85)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const s = canvas.width;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.shadowColor = '#ff3344';
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = '#ff3344';
+    ctx.font = `bold ${s * 0.09}px Arial`;
+    ctx.fillText('GAME OVER', cx, cy - s * 0.06);
+    ctx.shadowBlur = 0;
+
+    const subA = 0.4 + Math.sin(game.time * 3) * 0.3;
+    ctx.fillStyle = `rgba(255, 255, 255, ${subA})`;
+    ctx.font = `${s * 0.03}px Arial`;
+    ctx.fillText('Press ENTER or SPACE to try again', cx, cy + s * 0.06);
+}
+
+// ── MAIN LOOP ──
+let lastTime = 0;
+function loop(timestamp) {
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+    lastTime = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
