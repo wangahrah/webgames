@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chicken</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🐔 chicken</h1>
+    <div class="modes">
+      <button class="mode active" data-mode="cluck">Cluck</button>
+      <button class="mode" data-mode="python" disabled title="coming soon">Python</button>
+    </div>
+    <div class="actions">
+      <button id="run" title="Ctrl+Enter">Run</button>
+      <button id="stop">Stop</button>
+      <button id="clear">Clear</button>
+    </div>
+  </header>
+  <main>
+    <section class="editor">
+      <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+    </section>
+    <section class="coop">
+      <canvas id="canvas" width="600" height="600"></canvas>
+    </section>
+  </main>
+  <footer>
+    <div id="status">ready</div>
+  </footer>
+
+  <script src="js/ops.js"></script>
+  <script src="js/cluck.js"></script>
+  <script src="js/coop.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
