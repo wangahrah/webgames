@@ -228,5 +228,123 @@ test('empty source formats to empty', () => {
   eq(formatCluck('   \n   \n'), '');
 });
 
+console.log('\ncluck say verb');
+
+test('say with quoted string parses', () => {
+  const q = compileCluck('say "hello"');
+  eq(q.length, 1);
+  eq(q[0].op, 'say');
+  eq(q[0].arg, 'hello');
+});
+
+test('say preserves spaces and punctuation in string', () => {
+  const q = compileCluck('say "hello, world!"');
+  eq(q[0].arg, 'hello, world!');
+});
+
+test('say does not consume brackets inside string', () => {
+  const q = compileCluck('say "[brackets]"\nfd 10');
+  eq(q.length, 2);
+  eq(q[0].arg, '[brackets]');
+  eq(q[1].op, 'forward');
+});
+
+test('say does not strip # inside string', () => {
+  const q = compileCluck('say "no # comment here"');
+  eq(q[0].arg, 'no # comment here');
+});
+
+test('say without arg throws helpfully', () => {
+  throws(() => compileCluck('say'), 'needs some text in quotes');
+});
+
+test('say with bareword throws (not a string)', () => {
+  throws(() => compileCluck('say hello'), 'needs some text in quotes');
+});
+
+test('unclosed quote throws on the right line', () => {
+  const err = throws(() => compileCluck('fd 10\nsay "broken'), 'unclosed string');
+  eq(err.line, 2);
+});
+
+test('say inside repeat works', () => {
+  const q = compileCluck('repeat 2 [ say "hi" fd 20 ]');
+  eq(q.length, 4);
+  eq(q[0].op, 'say'); eq(q[0].arg, 'hi');
+  eq(q[1].op, 'forward');
+});
+
+test('formatter preserves quoted string as one statement', () => {
+  const out = formatCluck('repeat 2 [ say "hi there" fd 50 ]');
+  eq(out,
+    'repeat 2 [\n' +
+    '  say "hi there"\n' +
+    '  fd 50\n' +
+    ']\n');
+});
+
+test('formatter preserves brackets inside string', () => {
+  const out = formatCluck('say "[stay]"');
+  eq(out, 'say "[stay]"\n');
+});
+
+console.log('\nexamples programs');
+
+const EXAMPLE_PROGRAMS = {
+  square:
+    'say "a perfect square!"\n' +
+    'color blue\n' +
+    'repeat 4 [\n' +
+    '  fd 100\n' +
+    '  cluck\n' +
+    '  rt 90\n' +
+    ']\n' +
+    'lay\n',
+  star:
+    'color yellow\n' +
+    'speed fast\n' +
+    'say "stars!"\n' +
+    'repeat 5 [\n' +
+    '  fd 120\n' +
+    '  lay\n' +
+    '  cluck\n' +
+    '  rt 144\n' +
+    ']\n',
+  flower:
+    'color rainbow\n' +
+    'speed fast\n' +
+    'say "watch me bloom!"\n' +
+    'repeat 8 [\n' +
+    '  repeat 4 [\n' +
+    '    fd 60\n' +
+    '    rt 90\n' +
+    '  ]\n' +
+    '  cluck\n' +
+    '  rt 45\n' +
+    ']\n',
+  rainbow:
+    'say "rainbow time!"\n' +
+    'speed fast\n' +
+    'color rainbow\n' +
+    'repeat 12 [\n' +
+    '  fd 50\n' +
+    '  rt 30\n' +
+    ']\n' +
+    'home\n' +
+    'peck\n' +
+    'cluck\n' +
+    'say "tada!"\n',
+};
+
+for (const [name, program] of Object.entries(EXAMPLE_PROGRAMS)) {
+  test(`example "${name}" compiles cleanly`, () => {
+    const q = compileCluck(program);
+    if (q.length === 0) throw new Error('compiled to empty queue');
+  });
+  test(`example "${name}" is already tidy`, () => {
+    eq(formatCluck(program), program);
+  });
+}
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail === 0 ? 0 : 1);

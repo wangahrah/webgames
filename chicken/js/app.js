@@ -15,6 +15,52 @@ repeat 4 [
 ]
 `;
 
+const EXAMPLES = {
+  square:
+    'say "a perfect square!"\n' +
+    'color blue\n' +
+    'repeat 4 [\n' +
+    '  fd 100\n' +
+    '  cluck\n' +
+    '  rt 90\n' +
+    ']\n' +
+    'lay\n',
+  star:
+    'color yellow\n' +
+    'speed fast\n' +
+    'say "stars!"\n' +
+    'repeat 5 [\n' +
+    '  fd 120\n' +
+    '  lay\n' +
+    '  cluck\n' +
+    '  rt 144\n' +
+    ']\n',
+  flower:
+    'color rainbow\n' +
+    'speed fast\n' +
+    'say "watch me bloom!"\n' +
+    'repeat 8 [\n' +
+    '  repeat 4 [\n' +
+    '    fd 60\n' +
+    '    rt 90\n' +
+    '  ]\n' +
+    '  cluck\n' +
+    '  rt 45\n' +
+    ']\n',
+  rainbow:
+    'say "rainbow time!"\n' +
+    'speed fast\n' +
+    'color rainbow\n' +
+    'repeat 12 [\n' +
+    '  fd 50\n' +
+    '  rt 30\n' +
+    ']\n' +
+    'home\n' +
+    'peck\n' +
+    'cluck\n' +
+    'say "tada!"\n',
+};
+
 codeEl.value = localStorage.getItem('chicken.cluck') || STARTER;
 
 function buildCheatsheet() {
@@ -75,7 +121,18 @@ function run() {
 
 function tidy() {
   const before = codeEl.value;
-  const after = formatCluck(before);
+  let after;
+  try {
+    after = formatCluck(before);
+  } catch (e) {
+    if (e instanceof CluckError) {
+      setStatus(`line ${e.line}: ${e.message}`, true);
+    } else {
+      setStatus(`error: ${e.message}`, true);
+      console.error(e);
+    }
+    return;
+  }
   if (after === before) {
     setStatus('already tidy');
     return;
@@ -85,6 +142,15 @@ function tidy() {
   setStatus('tidied');
 }
 
+function loadExample(key, label) {
+  const program = EXAMPLES[key];
+  if (!program) return;
+  Coop.stop();
+  codeEl.value = program;
+  localStorage.setItem('chicken.cluck', program);
+  setStatus(`loaded: ${label}`);
+}
+
 runBtn.addEventListener('click', run);
 stopBtn.addEventListener('click', () => Coop.stop());
 formatBtn.addEventListener('click', tidy);
@@ -92,6 +158,10 @@ clearBtn.addEventListener('click', () => {
   Coop.stop();
   Coop.reset();
   setStatus('cleared');
+});
+
+document.querySelectorAll('button.example').forEach(btn => {
+  btn.addEventListener('click', () => loadExample(btn.dataset.example, btn.textContent));
 });
 
 codeEl.addEventListener('keydown', (e) => {

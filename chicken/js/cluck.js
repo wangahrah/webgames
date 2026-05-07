@@ -3,24 +3,72 @@
 // Grammar:
 //   program  := statement*
 //   statement := command | repeat | comment
-//   command  := word number?
+//   command  := word arg?
+//   arg      := number | word | string
+//   string   := '"' (any-but-quote)* '"'   (single line)
 //   repeat   := "repeat" number "[" statement* "]"
-//   comment  := "#" ... end of line
+//   comment  := "#" ... end of line (outside strings)
 
 class CluckError extends Error {
   constructor(message, line) { super(message); this.line = line; }
+}
+
+// Line-level lexer shared by tokenize() and formatCluck().
+// Returns { tokens: [string], comment: string|null }.
+// Quoted strings are returned as a single token with quotes preserved.
+// Brackets [ and ] are returned as their own single-char tokens.
+// `#` outside a string starts a comment that runs to end of line.
+function lexLine(line, lineNum) {
+  const tokens = [];
+  let comment = null;
+  let buf = '';
+  const flush = () => { if (buf.length > 0) { tokens.push(buf); buf = ''; } };
+
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (ch === '"') {
+      flush();
+      let str = '"';
+      i++;
+      while (i < line.length && line[i] !== '"') { str += line[i++]; }
+      if (i >= line.length) {
+        throw new CluckError(`unclosed string — needs a matching '"'`, lineNum);
+      }
+      str += '"';
+      i++;
+      tokens.push(str);
+      continue;
+    }
+    if (ch === '#') {
+      flush();
+      comment = line.slice(i).trim();
+      break;
+    }
+    if (ch === '[' || ch === ']') {
+      flush();
+      tokens.push(ch);
+      i++;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      flush();
+      i++;
+      continue;
+    }
+    buf += ch;
+    i++;
+  }
+  flush();
+  return { tokens, comment };
 }
 
 function tokenize(source) {
   const tokens = [];
   const lines = source.split('\n');
   for (let li = 0; li < lines.length; li++) {
-    let line = lines[li];
-    const hash = line.indexOf('#');
-    if (hash >= 0) line = line.slice(0, hash);
-    line = line.replace(/\[/g, ' [ ').replace(/\]/g, ' ] ');
-    const parts = line.trim().split(/\s+/).filter(Boolean);
-    for (const p of parts) tokens.push({ value: p, line: li + 1 });
+    const { tokens: lineToks } = lexLine(lines[li], li + 1);
+    for (const v of lineToks) tokens.push({ value: v, line: li + 1 });
   }
   return tokens;
 }
@@ -30,6 +78,13 @@ class TokenStream {
   peek() { return this.tokens[this.idx]; }
   next() { return this.tokens[this.idx++]; }
   eof() { return this.idx >= this.tokens.length; }
+}
+
+function isStringToken(value) {
+  return typeof value === 'string' &&
+         value.length >= 2 &&
+         value[0] === '"' &&
+         value[value.length - 1] === '"';
 }
 
 function parseNumber(stream) {
@@ -49,8 +104,17 @@ function parseWord(stream) {
   if (!t) return null;
   if (t.value === '[' || t.value === ']') return null;
   if (/^-?\d+(\.\d+)?$/.test(t.value)) return null;
+  if (isStringToken(t.value)) return null;
   stream.next();
   return { value: t.value.toLowerCase(), line: t.line };
+}
+
+function parseText(stream) {
+  const t = stream.peek();
+  if (!t) return null;
+  if (!isStringToken(t.value)) return null;
+  stream.next();
+  return { value: t.value.slice(1, -1), line: t.line };
 }
 
 function parseStatement(stream) {
@@ -85,6 +149,9 @@ function parseStatement(stream) {
 
   const verb = resolveVerb(word);
   if (!verb) {
+    if (isStringToken(tok.value)) {
+      throw new CluckError(`a string ${tok.value} doesn't go here on its own`, tok.line);
+    }
     const suggestion = suggestVerb(word);
     const hint = suggestion ? ` did you mean '${suggestion}'?` : '';
     throw new CluckError(`I don't know '${tok.value}'.${hint}`, tok.line);
@@ -106,6 +173,12 @@ function parseStatement(stream) {
       throw new CluckError(`'${verb}' doesn't know '${w.value}'.${tail}`, w.line);
     }
     arg = w.value;
+  } else if (def.arg === 'text') {
+    const t = parseText(stream);
+    if (t === null) {
+      throw new CluckError(`'${verb}' needs some text in quotes (like ${verb} "hello")`, tok.line);
+    }
+    arg = t.value;
   }
   return { type: 'cmd', verb, arg, line: tok.line };
 }
@@ -138,42 +211,38 @@ function compileCluck(source) {
 }
 
 // Pretty-printer: re-emits source with each statement on its own line and
-// repeat blocks indented. Preserves comments (full-line and inline).
+// repeat blocks indented. Preserves comments (full-line and inline) and
+// quoted strings as single tokens.
 function formatCluck(source) {
   const INDENT = '  ';
   const stream = [];
   const srcLines = source.split('\n');
 
-  for (const raw of srcLines) {
-    let line = raw;
-    let comment = null;
-    const h = line.indexOf('#');
-    if (h >= 0) {
-      comment = line.slice(h).trim();
-      line = line.slice(0, h);
-    }
-    line = line.replace(/\[/g, ' [ ').replace(/\]/g, ' ] ');
-    const parts = line.trim().split(/\s+/).filter(Boolean);
+  for (let li = 0; li < srcLines.length; li++) {
+    const { tokens: lineToks, comment } = lexLine(srcLines[li], li + 1);
 
-    if (parts.length === 0) {
+    if (lineToks.length === 0) {
       if (comment !== null) stream.push({ type: 'comment', value: comment });
       continue;
     }
-    const lineToks = parts.map(p => ({
-      type: p === '[' ? 'open' : p === ']' ? 'close' : 'word',
-      value: p,
+    const wrapped = lineToks.map(v => ({
+      type: v === '[' ? 'open' : v === ']' ? 'close' : 'word',
+      value: v,
     }));
     if (comment !== null) {
-      lineToks[lineToks.length - 1].trailing = comment;
+      wrapped[wrapped.length - 1].trailing = comment;
     }
-    for (const t of lineToks) stream.push(t);
+    for (const t of wrapped) stream.push(t);
   }
 
   const isNum = t => t && t.type === 'word' && /^-?\d+(\.\d+)?$/.test(t.value);
+  const isStr = t => t && t.type === 'word' && isStringToken(t.value);
+  const isPlainWord = t => t && t.type === 'word' && !isNum(t) && !isStr(t);
+
   const out = [];
   let depth = 0;
   let i = 0;
-  const peek = (off = 0) => stream[i + off];
+  const peek = () => stream[i];
   const take = () => stream[i++];
   const emit = text => out.push(INDENT.repeat(depth) + text);
   const withTrailing = (text, trailing) => trailing ? `${text} ${trailing}` : text;
@@ -228,7 +297,11 @@ function formatCluck(source) {
         const argTok = take();
         parts.push(argTok.value);
         if (argTok.trailing) trailing = argTok.trailing;
-      } else if (def.arg === 'word' && next && next.type === 'word' && !isNum(next)) {
+      } else if (def.arg === 'word' && isPlainWord(next)) {
+        const argTok = take();
+        parts.push(argTok.value);
+        if (argTok.trailing) trailing = argTok.trailing;
+      } else if (def.arg === 'text' && isStr(next)) {
         const argTok = take();
         parts.push(argTok.value);
         if (argTok.trailing) trailing = argTok.trailing;

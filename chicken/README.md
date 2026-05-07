@@ -53,6 +53,10 @@ After UI changes, open `index.html` and confirm:
 - [ ] `peck` bobs the chicken and leaves a small mark
 - [ ] `cluck` plays a short sound (volume audible, not jarring)
 - [ ] `color rd` shows "did you mean 'red'?" hint
+- [ ] `say "hello"` shows a speech bubble above the chicken
+- [ ] `say "broken` (unclosed) errors with line number
+- [ ] Each Examples button (Square / Star / Flower / Rainbow) loads
+      a program that runs cleanly
 
 ## File layout
 

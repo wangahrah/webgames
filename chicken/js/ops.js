@@ -20,6 +20,7 @@ const OPS = {
   lay:     { aliases: [],     arg: 'none',                   desc: 'lay an egg right here' },
   peck:    { aliases: [],     arg: 'none',                   desc: 'peck the ground' },
   cluck:   { aliases: [],     arg: 'none',                   desc: 'make a chicken noise' },
+  say:     { aliases: [],     arg: 'text',                   desc: 'say something out loud' },
 };
 
 // Extra non-verb syntax shown on the cheat sheet

@@ -21,6 +21,7 @@ const Coop = (function () {
     x: HOME.x, y: HOME.y, heading: HOME.heading,
     penDown: true, color: DEFAULT_COLOR,
     colorMode: 'fixed', hue: 0,
+    bubble: null,
   };
 
   const COLOR_MAP = {
@@ -81,6 +82,7 @@ const Coop = (function () {
     chicken.penDown = true;
     chicken.color = DEFAULT_COLOR;
     chicken.colorMode = 'fixed'; chicken.hue = 0;
+    chicken.bubble = null;
     speed.msPerUnit = BASE_SPEED.msPerUnit;
     speed.msPerDeg = BASE_SPEED.msPerDeg;
     tctx.clearRect(0, 0, W, H);
@@ -204,11 +206,63 @@ const Coop = (function () {
     ctx.restore();
   }
 
+  function drawBubble(text, cx, cy) {
+    ctx.save();
+    ctx.font = '14px system-ui, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"';
+    const padding = 8;
+    const tw = Math.ceil(ctx.measureText(text).width);
+    const th = 18;
+    const bw = tw + 2 * padding;
+    const bh = th + 2 * padding;
+
+    // Position above the chicken, clamped to canvas.
+    let bx = cx - bw / 2;
+    let by = cy - 50 - bh;
+    bx = Math.max(8, Math.min(W - bw - 8, bx));
+    by = Math.max(8, by);
+
+    const r = 8;
+    const tailW = 12;
+    const tipX = Math.min(Math.max(bx + r + 6, cx), bx + bw - r - 6);
+    const tipY = cy - 18;
+    const tailLeft = tipX - tailW / 2;
+    const tailRight = tipX + tailW / 2;
+    const bubbleBottom = by + bh;
+
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.lineTo(bx + bw - r, by);
+    ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+    ctx.lineTo(bx + bw, by + bh - r);
+    ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+    ctx.lineTo(tailRight, bubbleBottom);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(tailLeft, bubbleBottom);
+    ctx.lineTo(bx + r, bubbleBottom);
+    ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+    ctx.lineTo(bx, by + r);
+    ctx.quadraticCurveTo(bx, by, bx + r, by);
+    ctx.closePath();
+
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#222';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(text, bx + padding, by + padding);
+    ctx.restore();
+  }
+
   function render() {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(trail, 0, 0);
     drawChicken(chicken.x, chicken.y, chicken.heading);
     drawCompass(chicken.heading);
+    if (chicken.bubble) drawBubble(chicken.bubble, chicken.x, chicken.y);
   }
 
   function durationFor(op) {
@@ -219,6 +273,10 @@ const Coop = (function () {
       return Math.max(50, Math.abs(op.arg) * speed.msPerDeg);
     }
     if (op.op === 'peck') return 250;
+    if (op.op === 'say') {
+      const len = (op.arg || '').length;
+      return Math.max(1200, len * 60);
+    }
     return 0;
   }
 
@@ -284,6 +342,9 @@ const Coop = (function () {
     if (op.op === 'peck') {
       op._peckMarked = false;
     }
+    if (op.op === 'say') {
+      chicken.bubble = op.arg;
+    }
 
     if (durationFor(op) === 0) {
       applyInstant(op);
@@ -341,6 +402,9 @@ const Coop = (function () {
       if (op.op === 'peck') {
         // Snap back to origin — the bob is purely animation, not displacement.
         chicken.x = opFrom.x; chicken.y = opFrom.y; chicken.heading = opFrom.heading;
+      } else if (op.op === 'say') {
+        chicken.bubble = null;
+        render();
       } else {
         const tgt = targetOf(op, opFrom);
         chicken.x = tgt.x; chicken.y = tgt.y; chicken.heading = tgt.heading;
