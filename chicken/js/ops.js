@@ -3,15 +3,21 @@
 // and (in phase 3) expose it in the Python module.
 
 const OPS = {
-  forward: { aliases: ['fd'], arg: 'number', defaultArg: 10 },
-  back:    { aliases: ['bk'], arg: 'number', defaultArg: 10 },
-  right:   { aliases: ['rt'], arg: 'number', defaultArg: 90 },
-  left:    { aliases: ['lt'], arg: 'number', defaultArg: 90 },
-  penup:   { aliases: ['pu'], arg: 'none' },
-  pendown: { aliases: ['pd'], arg: 'none' },
-  home:    { aliases: [],     arg: 'none' },
-  clear:   { aliases: ['cs'], arg: 'none' },
+  forward: { aliases: ['fd'], arg: 'number', defaultArg: 10, desc: 'walk forward N steps' },
+  back:    { aliases: ['bk'], arg: 'number', defaultArg: 10, desc: 'walk back N steps' },
+  right:   { aliases: ['rt'], arg: 'number', defaultArg: 90, desc: 'turn right N degrees' },
+  left:    { aliases: ['lt'], arg: 'number', defaultArg: 90, desc: 'turn left N degrees' },
+  penup:   { aliases: ['pu'], arg: 'none',                   desc: 'lift the pen (no trail)' },
+  pendown: { aliases: ['pd'], arg: 'none',                   desc: 'drop the pen (draws a trail)' },
+  home:    { aliases: [],     arg: 'none',                   desc: 'back to the center' },
+  clear:   { aliases: ['cs'], arg: 'none',                   desc: 'wipe the canvas' },
 };
+
+// Extra non-verb syntax shown on the cheat sheet
+const SYNTAX_HELP = [
+  { cmd: 'repeat N [ … ]', desc: 'do something N times' },
+  { cmd: '# comment',      desc: 'lines starting with # are notes' },
+];
 
 const VERB_LOOKUP = {};
 for (const [name, def] of Object.entries(OPS)) {

@@ -16,6 +16,25 @@ repeat 4 [
 
 codeEl.value = localStorage.getItem('chicken.cluck') || STARTER;
 
+function buildCheatsheet() {
+  const el = document.getElementById('cheatsheet');
+  const verbRows = Object.entries(OPS).map(([name, def]) => {
+    const short = def.aliases[0];
+    const label = short ? `${short} / ${name}` : name;
+    const argHint = def.arg === 'number' ? ' N' : '';
+    return { cmd: label + argHint, desc: def.desc };
+  });
+  const all = [...verbRows, { spacer: true }, ...SYNTAX_HELP];
+  const html = '<h3>commands</h3><table>' +
+    all.map(r => r.spacer
+      ? '<tr class="spacer"><td></td><td></td></tr>'
+      : `<tr><td>${r.cmd}</td><td>${r.desc}</td></tr>`
+    ).join('') +
+    '</table>';
+  el.innerHTML = html;
+}
+buildCheatsheet();
+
 codeEl.addEventListener('input', () => {
   localStorage.setItem('chicken.cluck', codeEl.value);
 });

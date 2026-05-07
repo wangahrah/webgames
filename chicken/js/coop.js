@@ -50,10 +50,91 @@ const Coop = (function () {
     ctx.restore();
   }
 
+  function drawCompass(heading) {
+    const cx = W - 75, cy = 75, r = 42;
+    ctx.save();
+
+    // Background disc (semi-transparent, big enough to cover labels)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 20, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner circle (the dial itself)
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    // Tick marks every 30° (longer + thicker at cardinals)
+    ctx.strokeStyle = '#666';
+    for (let deg = 0; deg < 360; deg += 30) {
+      const isMajor = deg % 90 === 0;
+      const inner = isMajor ? r - 8 : r - 4;
+      const rad = deg * Math.PI / 180;
+      ctx.lineWidth = isMajor ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + inner * Math.cos(rad), cy + inner * Math.sin(rad));
+      ctx.lineTo(cx + r * Math.cos(rad), cy + r * Math.sin(rad));
+      ctx.stroke();
+    }
+
+    // Cardinal labels
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labelR = r + 12;
+    for (const deg of [0, 90, 180, 270]) {
+      const rad = deg * Math.PI / 180;
+      ctx.fillText(`${deg}°`, cx + labelR * Math.cos(rad), cy + labelR * Math.sin(rad));
+    }
+
+    // Live heading arrow (red, tracks the chicken)
+    const hRad = heading * Math.PI / 180;
+    const tipR = r - 6;
+    const tipX = cx + tipR * Math.cos(hRad);
+    const tipY = cy + tipR * Math.sin(hRad);
+    ctx.strokeStyle = '#e53935';
+    ctx.fillStyle = '#e53935';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+
+    const ah = 7;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(
+      tipX - ah * Math.cos(hRad - 0.45),
+      tipY - ah * Math.sin(hRad - 0.45)
+    );
+    ctx.lineTo(
+      tipX - ah * Math.cos(hRad + 0.45),
+      tipY - ah * Math.sin(hRad + 0.45)
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // Center pin
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.5, 0, 2 * Math.PI);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function render() {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(trail, 0, 0);
     drawChicken(chicken.x, chicken.y, chicken.heading);
+    drawCompass(chicken.heading);
   }
 
   function durationFor(op) {

@@ -52,6 +52,7 @@ main {
   width: 40%;
   min-width: 300px;
   display: flex;
+  flex-direction: column;
   border-right: 1px solid #ddd;
 }
 #code {
@@ -67,6 +68,35 @@ main {
   line-height: 1.55;
   tab-size: 2;
 }
+
+.cheatsheet {
+  background: #fff9c4;
+  color: #5d4037;
+  border-top: 3px solid #f9a825;
+  padding: 0.75rem 1rem;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  overflow-y: auto;
+  max-height: 45%;
+}
+.cheatsheet h3 {
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.4rem;
+  color: #6d4c41;
+}
+.cheatsheet table { width: 100%; border-collapse: collapse; }
+.cheatsheet td { padding: 0.1rem 0; vertical-align: top; }
+.cheatsheet td:first-child {
+  white-space: nowrap;
+  padding-right: 1rem;
+  color: #1e1e2e;
+  font-weight: 600;
+}
+.cheatsheet tr.spacer td { padding-top: 0.4rem; }
 
 .coop {
   flex: 1;
