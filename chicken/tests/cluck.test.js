@@ -119,5 +119,54 @@ test('stray bracket caught', () => {
   throws(() => compileCluck('fd 50 ]'), 'unexpected');
 });
 
+console.log('\ncluck phase 2 verbs');
+
+test('color accepts named colors', () => {
+  const q = compileCluck('color red\nfd 10');
+  eq(q[0].op, 'color'); eq(q[0].arg, 'red');
+});
+
+test('color rainbow parses', () => {
+  const q = compileCluck('color rainbow');
+  eq(q[0].arg, 'rainbow');
+});
+
+test('color rejects unknown name with hint', () => {
+  const err = throws(() => compileCluck('color rd'), `did you mean 'red'`);
+  eq(err.line, 1);
+});
+
+test('color without arg throws helpfully', () => {
+  throws(() => compileCluck('color'), 'needs a word');
+});
+
+test('speed slow/medium/fast parse', () => {
+  const q = compileCluck('speed slow\nspeed medium\nspeed fast');
+  eq(q.map(o => o.arg), ['slow', 'medium', 'fast']);
+});
+
+test('speed rejects unknown word', () => {
+  throws(() => compileCluck('speed turbo'), `'speed' doesn't know 'turbo'`);
+});
+
+test('lay/peck/cluck are no-arg ops', () => {
+  const q = compileCluck('lay\npeck\ncluck');
+  eq(q.map(o => o.op), ['lay', 'peck', 'cluck']);
+  for (const o of q) eq(o.arg, null);
+});
+
+test('color inside repeat works', () => {
+  const q = compileCluck('repeat 3 [ color blue fd 10 ]');
+  eq(q.length, 6);
+  eq(q[0].op, 'color'); eq(q[0].arg, 'blue');
+  eq(q[1].op, 'forward');
+});
+
+test('case-insensitive word args', () => {
+  const q = compileCluck('COLOR Red\nSPEED FAST');
+  eq(q[0].arg, 'red');
+  eq(q[1].arg, 'fast');
+});
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail === 0 ? 0 : 1);

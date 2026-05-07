@@ -44,6 +44,15 @@ function parseNumber(stream) {
   return null;
 }
 
+function parseWord(stream) {
+  const t = stream.peek();
+  if (!t) return null;
+  if (t.value === '[' || t.value === ']') return null;
+  if (/^-?\d+(\.\d+)?$/.test(t.value)) return null;
+  stream.next();
+  return { value: t.value.toLowerCase(), line: t.line };
+}
+
 function parseStatement(stream) {
   const tok = stream.next();
   if (!tok) return null;
@@ -86,6 +95,17 @@ function parseStatement(stream) {
   if (def.arg === 'number') {
     arg = parseNumber(stream);
     if (arg === null) arg = def.defaultArg;
+  } else if (def.arg === 'word') {
+    const w = parseWord(stream);
+    if (w === null) {
+      throw new CluckError(`'${verb}' needs a word after it (try: ${def.values.join(', ')})`, tok.line);
+    }
+    if (def.values && !def.values.includes(w.value)) {
+      const hint = nearestFromList(w.value, def.values);
+      const tail = hint ? ` did you mean '${hint}'?` : ` try one of: ${def.values.join(', ')}`;
+      throw new CluckError(`'${verb}' doesn't know '${w.value}'.${tail}`, w.line);
+    }
+    arg = w.value;
   }
   return { type: 'cmd', verb, arg, line: tok.line };
 }

@@ -11,6 +11,15 @@ const OPS = {
   pendown: { aliases: ['pd'], arg: 'none',                   desc: 'drop the pen (draws a trail)' },
   home:    { aliases: [],     arg: 'none',                   desc: 'back to the center' },
   clear:   { aliases: ['cs'], arg: 'none',                   desc: 'wipe the canvas' },
+  color:   { aliases: [],     arg: 'word',
+             values: ['red','blue','green','yellow','orange','purple','black','white','rainbow'],
+             desc:   'pen color (try rainbow!)' },
+  speed:   { aliases: [],     arg: 'word',
+             values: ['slow','medium','fast'],
+             desc:   'walk speed' },
+  lay:     { aliases: [],     arg: 'none',                   desc: 'lay an egg right here' },
+  peck:    { aliases: [],     arg: 'none',                   desc: 'peck the ground' },
+  cluck:   { aliases: [],     arg: 'none',                   desc: 'make a chicken noise' },
 };
 
 // Extra non-verb syntax shown on the cheat sheet
@@ -50,12 +59,16 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
-function suggestVerb(word) {
+function nearestFromList(word, list, maxDist = 3) {
   const lower = word.toLowerCase();
-  let best = null, bestDist = 3;
-  for (const w of allVerbWords()) {
+  let best = null, bestDist = maxDist;
+  for (const w of list) {
     const d = levenshtein(lower, w);
     if (d < bestDist) { bestDist = d; best = w; }
   }
   return best;
+}
+
+function suggestVerb(word) {
+  return nearestFromList(word, allVerbWords());
 }

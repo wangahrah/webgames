@@ -46,6 +46,13 @@ After UI changes, open `index.html` and confirm:
 - [ ] Ctrl+Enter runs from the editor
 - [ ] Reload preserves edited code (localStorage)
 - [ ] Typo error shows line number + "did you mean…"
+- [ ] `color red` / `color blue` / etc. tints subsequent trail
+- [ ] `color rainbow` cycles hue per segment
+- [ ] `speed slow` / `speed fast` visibly changes pace
+- [ ] `lay` drops a 🥚 at the chicken's current spot
+- [ ] `peck` bobs the chicken and leaves a small mark
+- [ ] `cluck` plays a short sound (volume audible, not jarring)
+- [ ] `color rd` shows "did you mean 'red'?" hint
 
 ## File layout
 

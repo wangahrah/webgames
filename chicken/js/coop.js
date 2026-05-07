@@ -16,12 +16,58 @@ const Coop = (function () {
   const tctx = trail.getContext('2d');
 
   const HOME = { x: W / 2, y: H / 2, heading: 0 };
+  const DEFAULT_COLOR = '#222';
   const chicken = {
     x: HOME.x, y: HOME.y, heading: HOME.heading,
-    penDown: true, color: '#222',
+    penDown: true, color: DEFAULT_COLOR,
+    colorMode: 'fixed', hue: 0,
   };
 
-  const speed = { msPerUnit: 4, msPerDeg: 2 };
+  const COLOR_MAP = {
+    red:    '#e53935',
+    blue:   '#1e88e5',
+    green:  '#43a047',
+    yellow: '#fdd835',
+    orange: '#fb8c00',
+    purple: '#8e24aa',
+    black:  '#000000',
+    white:  '#ffffff',
+  };
+
+  const BASE_SPEED = { msPerUnit: 4, msPerDeg: 2 };
+  const SPEED_MAP = {
+    slow:   { mult: 2.0 },
+    medium: { mult: 1.0 },
+    fast:   { mult: 0.4 },
+  };
+  const speed = { msPerUnit: BASE_SPEED.msPerUnit, msPerDeg: BASE_SPEED.msPerDeg };
+
+  // Web Audio for `cluck` — created lazily on first use (browser autoplay rules).
+  let audioCtx = null;
+  function ensureAudio() {
+    if (audioCtx) return audioCtx;
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return null;
+    audioCtx = new Ctor();
+    return audioCtx;
+  }
+  function playCluck() {
+    const ac = ensureAudio();
+    if (!ac) return;
+    if (ac.state === 'suspended') ac.resume();
+    const t0 = ac.currentTime;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(600, t0);
+    osc.frequency.exponentialRampToValueAtTime(300, t0 + 0.08);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.1);
+  }
 
   let queue = [];
   let qi = 0;
@@ -32,12 +78,40 @@ const Coop = (function () {
 
   function reset() {
     chicken.x = HOME.x; chicken.y = HOME.y; chicken.heading = HOME.heading;
-    chicken.penDown = true; chicken.color = '#222';
+    chicken.penDown = true;
+    chicken.color = DEFAULT_COLOR;
+    chicken.colorMode = 'fixed'; chicken.hue = 0;
+    speed.msPerUnit = BASE_SPEED.msPerUnit;
+    speed.msPerDeg = BASE_SPEED.msPerDeg;
     tctx.clearRect(0, 0, W, H);
     render();
   }
 
   function clearTrail() { tctx.clearRect(0, 0, W, H); }
+
+  function stampEgg(x, y) {
+    tctx.save();
+    tctx.font = '24px system-ui, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"';
+    tctx.textAlign = 'center';
+    tctx.textBaseline = 'middle';
+    tctx.fillText('🥚', x, y);
+    tctx.restore();
+  }
+
+  function stampPeckMark(x, y) {
+    tctx.save();
+    tctx.fillStyle = '#7a4a1d';
+    tctx.beginPath();
+    tctx.arc(x, y, 2.5, 0, 2 * Math.PI);
+    tctx.fill();
+    tctx.restore();
+  }
+
+  function nextRainbowColor() {
+    const c = `hsl(${chicken.hue}, 80%, 45%)`;
+    chicken.hue = (chicken.hue + 30) % 360;
+    return c;
+  }
 
   function drawChicken(x, y, heading) {
     ctx.save();
@@ -144,6 +218,7 @@ const Coop = (function () {
     if (op.op === 'right' || op.op === 'left') {
       return Math.max(50, Math.abs(op.arg) * speed.msPerDeg);
     }
+    if (op.op === 'peck') return 250;
     return 0;
   }
 
@@ -176,6 +251,22 @@ const Coop = (function () {
         chicken.x = HOME.x; chicken.y = HOME.y; chicken.heading = HOME.heading;
         break;
       case 'clear': clearTrail(); break;
+      case 'color':
+        if (op.arg === 'rainbow') {
+          chicken.colorMode = 'rainbow';
+        } else {
+          chicken.colorMode = 'fixed';
+          chicken.color = COLOR_MAP[op.arg] || DEFAULT_COLOR;
+        }
+        break;
+      case 'speed': {
+        const s = SPEED_MAP[op.arg] || SPEED_MAP.medium;
+        speed.msPerUnit = BASE_SPEED.msPerUnit * s.mult;
+        speed.msPerDeg = BASE_SPEED.msPerDeg * s.mult;
+        break;
+      }
+      case 'lay':   stampEgg(chicken.x, chicken.y); break;
+      case 'cluck': playCluck(); break;
     }
   }
 
@@ -184,6 +275,16 @@ const Coop = (function () {
     const op = queue[qi];
     opFrom = snapshot();
     opStart = performance.now();
+
+    // Lock in this segment's color before any animation begins, so rainbow
+    // mode advances once per move (not once per tick).
+    if ((op.op === 'forward' || op.op === 'back') && chicken.colorMode === 'rainbow') {
+      chicken.color = nextRainbowColor();
+    }
+    if (op.op === 'peck') {
+      op._peckMarked = false;
+    }
+
     if (durationFor(op) === 0) {
       applyInstant(op);
       qi++;
@@ -219,13 +320,31 @@ const Coop = (function () {
     } else if (op.op === 'right' || op.op === 'left') {
       const tgt = targetOf(op, opFrom);
       chicken.heading = opFrom.heading + (tgt.heading - opFrom.heading) * t;
+    } else if (op.op === 'peck') {
+      // Bob forward 5px and back over 250ms; stamp a mark at peak.
+      const PECK_DIST = 5;
+      const phase = Math.sin(t * Math.PI); // 0 → 1 → 0
+      const rad = opFrom.heading * Math.PI / 180;
+      chicken.x = opFrom.x + PECK_DIST * phase * Math.cos(rad);
+      chicken.y = opFrom.y + PECK_DIST * phase * Math.sin(rad);
+      if (!op._peckMarked && t >= 0.5) {
+        const tipX = opFrom.x + (PECK_DIST + 6) * Math.cos(rad);
+        const tipY = opFrom.y + (PECK_DIST + 6) * Math.sin(rad);
+        stampPeckMark(tipX, tipY);
+        op._peckMarked = true;
+      }
     }
 
     render();
 
     if (t >= 1) {
-      const tgt = targetOf(op, opFrom);
-      chicken.x = tgt.x; chicken.y = tgt.y; chicken.heading = tgt.heading;
+      if (op.op === 'peck') {
+        // Snap back to origin — the bob is purely animation, not displacement.
+        chicken.x = opFrom.x; chicken.y = opFrom.y; chicken.heading = opFrom.heading;
+      } else {
+        const tgt = targetOf(op, opFrom);
+        chicken.x = tgt.x; chicken.y = tgt.y; chicken.heading = tgt.heading;
+      }
       qi++;
       if (qi >= queue.length) { finish(false); return; }
       startOp();
