@@ -5,6 +5,7 @@ const statusEl = document.getElementById('status');
 const runBtn = document.getElementById('run');
 const stopBtn = document.getElementById('stop');
 const clearBtn = document.getElementById('clear');
+const formatBtn = document.getElementById('format');
 
 const STARTER = `# welcome! press Run (or Ctrl+Enter)
 
@@ -72,8 +73,21 @@ function run() {
   });
 }
 
+function tidy() {
+  const before = codeEl.value;
+  const after = formatCluck(before);
+  if (after === before) {
+    setStatus('already tidy');
+    return;
+  }
+  codeEl.value = after;
+  localStorage.setItem('chicken.cluck', after);
+  setStatus('tidied');
+}
+
 runBtn.addEventListener('click', run);
 stopBtn.addEventListener('click', () => Coop.stop());
+formatBtn.addEventListener('click', tidy);
 clearBtn.addEventListener('click', () => {
   Coop.stop();
   Coop.reset();
@@ -84,5 +98,8 @@ codeEl.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault();
     run();
+  } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+    e.preventDefault();
+    tidy();
   }
 });

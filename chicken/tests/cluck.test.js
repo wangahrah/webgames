@@ -10,7 +10,7 @@ vm.createContext(ctx);
 for (const f of ['js/ops.js', 'js/cluck.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx);
 }
-const { compileCluck, resolveVerb, suggestVerb } = ctx;
+const { compileCluck, resolveVerb, suggestVerb, formatCluck } = ctx;
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -166,6 +166,66 @@ test('case-insensitive word args', () => {
   const q = compileCluck('COLOR Red\nSPEED FAST');
   eq(q[0].arg, 'red');
   eq(q[1].arg, 'fast');
+});
+
+console.log('\ncluck formatter');
+
+test('one-line repeat expands to indented block', () => {
+  const out = formatCluck('repeat 4 [ fd 100 rt 90 ]');
+  eq(out, 'repeat 4 [\n  fd 100\n  rt 90\n]\n');
+});
+
+test('multiple statements on one line are split', () => {
+  const out = formatCluck('pu fd 50 pd');
+  eq(out, 'pu\nfd 50\npd\n');
+});
+
+test('nested repeats indent two levels', () => {
+  const out = formatCluck('repeat 6 [ repeat 4 [ fd 50 rt 90 ] rt 60 ]');
+  eq(out,
+    'repeat 6 [\n' +
+    '  repeat 4 [\n' +
+    '    fd 50\n' +
+    '    rt 90\n' +
+    '  ]\n' +
+    '  rt 60\n' +
+    ']\n');
+});
+
+test('full-line comment preserved at current depth', () => {
+  const out = formatCluck('# top comment\nrepeat 2 [\n# inside\nfd 10\n]');
+  eq(out,
+    '# top comment\n' +
+    'repeat 2 [\n' +
+    '  # inside\n' +
+    '  fd 10\n' +
+    ']\n');
+});
+
+test('inline comment stays attached to its statement', () => {
+  const out = formatCluck('fd 50 # walk\nrt 90 # turn');
+  eq(out, 'fd 50 # walk\nrt 90 # turn\n');
+});
+
+test('already-tidy code is idempotent', () => {
+  const tidy = 'repeat 4 [\n  fd 100\n  rt 90\n]\n';
+  eq(formatCluck(tidy), tidy);
+});
+
+test('color and speed format on their own lines', () => {
+  const out = formatCluck('color rainbow speed fast repeat 6 [ fd 50 rt 60 ]');
+  eq(out,
+    'color rainbow\n' +
+    'speed fast\n' +
+    'repeat 6 [\n' +
+    '  fd 50\n' +
+    '  rt 60\n' +
+    ']\n');
+});
+
+test('empty source formats to empty', () => {
+  eq(formatCluck(''), '');
+  eq(formatCluck('   \n   \n'), '');
 });
 
 console.log(`\n${pass}/${pass + fail} passed`);

@@ -136,3 +136,107 @@ function compileToQueue(ast) {
 function compileCluck(source) {
   return compileToQueue(parseProgram(source));
 }
+
+// Pretty-printer: re-emits source with each statement on its own line and
+// repeat blocks indented. Preserves comments (full-line and inline).
+function formatCluck(source) {
+  const INDENT = '  ';
+  const stream = [];
+  const srcLines = source.split('\n');
+
+  for (const raw of srcLines) {
+    let line = raw;
+    let comment = null;
+    const h = line.indexOf('#');
+    if (h >= 0) {
+      comment = line.slice(h).trim();
+      line = line.slice(0, h);
+    }
+    line = line.replace(/\[/g, ' [ ').replace(/\]/g, ' ] ');
+    const parts = line.trim().split(/\s+/).filter(Boolean);
+
+    if (parts.length === 0) {
+      if (comment !== null) stream.push({ type: 'comment', value: comment });
+      continue;
+    }
+    const lineToks = parts.map(p => ({
+      type: p === '[' ? 'open' : p === ']' ? 'close' : 'word',
+      value: p,
+    }));
+    if (comment !== null) {
+      lineToks[lineToks.length - 1].trailing = comment;
+    }
+    for (const t of lineToks) stream.push(t);
+  }
+
+  const isNum = t => t && t.type === 'word' && /^-?\d+(\.\d+)?$/.test(t.value);
+  const out = [];
+  let depth = 0;
+  let i = 0;
+  const peek = (off = 0) => stream[i + off];
+  const take = () => stream[i++];
+  const emit = text => out.push(INDENT.repeat(depth) + text);
+  const withTrailing = (text, trailing) => trailing ? `${text} ${trailing}` : text;
+
+  while (i < stream.length) {
+    const tok = peek();
+
+    if (tok.type === 'comment') { take(); emit(tok.value); continue; }
+
+    if (tok.type === 'close') {
+      take();
+      depth = Math.max(0, depth - 1);
+      emit(withTrailing(']', tok.trailing));
+      continue;
+    }
+
+    if (tok.type === 'open') {
+      take();
+      emit(withTrailing('[', tok.trailing));
+      depth++;
+      continue;
+    }
+
+    const word = tok.value.toLowerCase();
+    const startTok = take();
+    const parts = [startTok.value];
+    let trailing = startTok.trailing || null;
+
+    if (word === 'repeat') {
+      if (isNum(peek())) {
+        const numTok = take();
+        parts.push(numTok.value);
+        if (numTok.trailing) trailing = numTok.trailing;
+      }
+      if (peek() && peek().type === 'open') {
+        const openTok = take();
+        parts.push('[');
+        if (openTok.trailing) trailing = openTok.trailing;
+        emit(withTrailing(parts.join(' '), trailing));
+        depth++;
+        continue;
+      }
+      emit(withTrailing(parts.join(' '), trailing));
+      continue;
+    }
+
+    const verb = resolveVerb(word);
+    if (verb) {
+      const def = OPS[verb];
+      const next = peek();
+      if (def.arg === 'number' && isNum(next)) {
+        const argTok = take();
+        parts.push(argTok.value);
+        if (argTok.trailing) trailing = argTok.trailing;
+      } else if (def.arg === 'word' && next && next.type === 'word' && !isNum(next)) {
+        const argTok = take();
+        parts.push(argTok.value);
+        if (argTok.trailing) trailing = argTok.trailing;
+      }
+    }
+
+    emit(withTrailing(parts.join(' '), trailing));
+  }
+
+  return out.join('\n') + (out.length > 0 ? '\n' : '');
+}
