@@ -25,10 +25,11 @@ front-end.
 
 ## Running tests
 
-Parser only — the renderer is verified by play.
+Parser and storage. The renderer is verified by play.
 
 ```
 node tests/cluck.test.js
+node tests/saves.test.js
 ```
 
 ## Smoke checklist (visual things tests don't catch)
@@ -58,6 +59,29 @@ After UI changes, open `index.html` and confirm:
 - [ ] Each Examples button (Square / Star / Flower / Rainbow) loads
       a program that runs cleanly
 
+### Saving scripts
+
+- [ ] 💾 Save opens popover; name input is focused and selected
+- [ ] Ctrl+S opens the same popover from any focus
+- [ ] Save with empty/whitespace name → button disabled, hint shown
+- [ ] Save with a new name → status reads "saved: <name>"; reload
+      preserves it
+- [ ] 📂 My Scripts panel lists saves, newest first; 🐔 marks the
+      currently loaded one
+- [ ] Clicking a saved name with edits triggers "Save your work first?"
+      with Save / Throw away / Cancel
+- [ ] Same prompt fires when clicking an Examples button mid-edit
+- [ ] Save → succeeds → the pending load proceeds
+- [ ] Throw away → loads anyway
+- [ ] Saving an existing name → "Replace" button (yellow); typing
+      anything resets to plain Save
+- [ ] ✕ on a row → inline "Delete <name>? Yes/No"; No restores; Yes
+      removes
+- [ ] Empty state: panel says "No saved scripts yet…"
+- [ ] Escape and click-outside close any open popover
+- [ ] Corrupting `chicken.saves.v1` in DevTools → editor still works,
+      panel shows empty state, next save heals storage
+
 ## File layout
 
 ```
@@ -68,7 +92,9 @@ chicken/
 │   ├── ops.js         verb table (single source of truth)
 │   ├── cluck.js       Cluck-speak parser → command queue
 │   ├── coop.js        canvas renderer, chicken sprite, compass, playback
+│   ├── saves.js       named-script storage (localStorage)
 │   └── app.js         wiring (buttons, localStorage, cheat sheet build)
 └── tests/
-    └── cluck.test.js  parser sanity checks
+    ├── cluck.test.js  parser sanity checks
+    └── saves.test.js  storage roundtrips, validation, resilience
 ```

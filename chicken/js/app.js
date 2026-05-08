@@ -148,7 +148,9 @@ function loadExample(key, label) {
   Coop.stop();
   codeEl.value = program;
   localStorage.setItem('chicken.cluck', program);
+  Saves.setLastSaved(null, program);
   setStatus(`loaded: ${label}`);
+  renderScriptsList();
 }
 
 runBtn.addEventListener('click', run);
@@ -160,8 +162,13 @@ clearBtn.addEventListener('click', () => {
   setStatus('cleared');
 });
 
-document.querySelectorAll('button.example').forEach(btn => {
-  btn.addEventListener('click', () => loadExample(btn.dataset.example, btn.textContent));
+document.querySelectorAll('button[data-example]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    confirmIfDirty(() => {
+      loadExample(btn.dataset.example, btn.textContent);
+      closeAllPopovers();
+    });
+  });
 });
 
 codeEl.addEventListener('keydown', (e) => {
@@ -173,3 +180,285 @@ codeEl.addEventListener('keydown', (e) => {
     tidy();
   }
 });
+
+// ---- Save / Load / Delete ---------------------------------------------------
+
+const saveBtn = document.getElementById('save-script');
+const myScriptsBtn = document.getElementById('my-scripts');
+const savePopover = document.getElementById('save-popover');
+const saveNameInput = document.getElementById('save-name');
+const saveConfirmBtn = document.getElementById('save-confirm');
+const saveCancelBtn = document.getElementById('save-cancel');
+const saveHint = document.getElementById('save-hint');
+const scriptsPanel = document.getElementById('scripts-panel');
+const scriptsList = document.getElementById('scripts-list');
+const dirtyConfirm = document.getElementById('dirty-confirm');
+const dirtySaveBtn = document.getElementById('dirty-save');
+const dirtyThrowBtn = document.getElementById('dirty-throw');
+const dirtyCancelBtn = document.getElementById('dirty-cancel');
+
+let pendingAction = null;
+let saveMode = 'new'; // 'new' | 'replace'
+
+function isDirty() {
+  const draft = codeEl.value;
+  const last = Saves.getLastSaved();
+  if (last) return draft !== last.code;
+  return draft.trim() !== '' && draft !== STARTER;
+}
+
+function closeAllPopovers() {
+  savePopover.hidden = true;
+  scriptsPanel.hidden = true;
+  dirtyConfirm.hidden = true;
+  myScriptsBtn.setAttribute('aria-expanded', 'false');
+  saveHint.hidden = true;
+  saveMode = 'new';
+  saveConfirmBtn.textContent = 'Save';
+  saveConfirmBtn.classList.remove('danger-btn');
+  saveConfirmBtn.classList.add('popover-primary');
+}
+
+function cancelEverything() {
+  closeAllPopovers();
+  pendingAction = null;
+}
+
+function confirmIfDirty(action) {
+  if (!isDirty()) {
+    action();
+    return;
+  }
+  pendingAction = action;
+  closeAllPopovers();
+  dirtyConfirm.hidden = false;
+}
+
+function openSavePopover(prefill) {
+  closeAllPopovers();
+  const last = Saves.getLastSaved();
+  const fallback = (last && last.name) ? last.name : '';
+  saveNameInput.value = prefill !== undefined ? prefill : fallback;
+  savePopover.hidden = false;
+  updateSaveValidity();
+  saveNameInput.focus();
+  saveNameInput.select();
+}
+
+function updateSaveValidity() {
+  const raw = saveNameInput.value;
+  const valid = Saves.isValidName(raw);
+  saveConfirmBtn.disabled = !valid;
+  // Any name change resets the replace-confirm flow.
+  if (saveMode === 'replace') {
+    saveMode = 'new';
+    saveConfirmBtn.textContent = 'Save';
+    saveConfirmBtn.classList.remove('danger-btn');
+    saveConfirmBtn.classList.add('popover-primary');
+  }
+  if (!valid && raw.length > 0) {
+    saveHint.textContent = 'type a name first';
+    saveHint.hidden = false;
+  } else {
+    saveHint.hidden = true;
+  }
+}
+
+function attemptSave() {
+  const name = Saves.normalizeName(saveNameInput.value);
+  if (!Saves.isValidName(name)) return;
+  const existing = Saves.get(name);
+  if (existing && saveMode !== 'replace') {
+    saveMode = 'replace';
+    saveConfirmBtn.textContent = `Replace "${existing.name}"`;
+    saveConfirmBtn.classList.remove('popover-primary');
+    saveConfirmBtn.classList.add('danger-btn');
+    saveHint.textContent = 'click again to replace';
+    saveHint.hidden = false;
+    return;
+  }
+  doSave(name);
+}
+
+function doSave(name) {
+  const code = codeEl.value;
+  try {
+    Saves.put(name, code);
+  } catch (e) {
+    if (e instanceof SavesQuotaError) {
+      setStatus("couldn't save — try a shorter script", true);
+    } else {
+      setStatus(`couldn't save: ${e.message}`, true);
+      console.error(e);
+    }
+    return;
+  }
+  Saves.setLastSaved(name, code);
+  setStatus(`saved: ${name}`);
+  closeAllPopovers();
+  if (pendingAction) {
+    const action = pendingAction;
+    pendingAction = null;
+    action();
+  }
+}
+
+function loadSaved(name) {
+  const entry = Saves.get(name);
+  if (!entry) return;
+  Coop.stop();
+  codeEl.value = entry.code;
+  localStorage.setItem('chicken.cluck', entry.code);
+  Saves.setLastSaved(entry.name, entry.code);
+  setStatus(`loaded: ${entry.name}`);
+  renderScriptsList();
+}
+
+function renderScriptsList() {
+  const entries = Saves.list();
+  const last = Saves.getLastSaved();
+  const currentName = (last && last.name) ? last.name.toLowerCase() : null;
+
+  scriptsList.innerHTML = '';
+  if (entries.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'scripts-empty';
+    empty.textContent = 'No saved scripts yet. Click 💾 Save to keep one!';
+    scriptsList.appendChild(empty);
+    return;
+  }
+  for (const entry of entries) {
+    const row = document.createElement('div');
+    row.className = 'script-row';
+    if (entry.name.toLowerCase() === currentName) row.classList.add('current');
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'script-load';
+    loadBtn.textContent = entry.name;
+    loadBtn.title = `load "${entry.name}"`;
+    loadBtn.addEventListener('click', () => {
+      confirmIfDirty(() => {
+        loadSaved(entry.name);
+        closeAllPopovers();
+      });
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'script-delete';
+    delBtn.textContent = '✕';
+    delBtn.title = `delete "${entry.name}"`;
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      flipRowToConfirmDelete(row, entry.name);
+    });
+
+    row.appendChild(loadBtn);
+    row.appendChild(delBtn);
+    scriptsList.appendChild(row);
+  }
+}
+
+function flipRowToConfirmDelete(row, name) {
+  row.classList.add('confirming');
+  row.innerHTML = '';
+
+  const text = document.createElement('span');
+  text.className = 'confirm-text';
+  text.textContent = `Delete "${name}"?`;
+
+  const yes = document.createElement('button');
+  yes.className = 'danger-btn';
+  yes.textContent = 'Yes';
+  yes.addEventListener('click', (e) => {
+    e.stopPropagation();
+    Saves.remove(name);
+    setStatus(`deleted: ${name}`);
+    renderScriptsList();
+  });
+
+  const no = document.createElement('button');
+  no.textContent = 'No';
+  no.addEventListener('click', (e) => {
+    e.stopPropagation();
+    renderScriptsList();
+  });
+
+  row.appendChild(text);
+  row.appendChild(yes);
+  row.appendChild(no);
+}
+
+function openScriptsPanel() {
+  closeAllPopovers();
+  renderScriptsList();
+  scriptsPanel.hidden = false;
+  myScriptsBtn.setAttribute('aria-expanded', 'true');
+}
+
+// Wiring --------------------------------------------------------------
+
+saveBtn.addEventListener('click', () => openSavePopover());
+saveCancelBtn.addEventListener('click', () => cancelEverything());
+saveConfirmBtn.addEventListener('click', () => attemptSave());
+saveNameInput.addEventListener('input', updateSaveValidity);
+saveNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    attemptSave();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelEverything();
+  }
+});
+
+myScriptsBtn.addEventListener('click', () => {
+  if (!scriptsPanel.hidden) {
+    closeAllPopovers();
+  } else {
+    openScriptsPanel();
+  }
+});
+
+dirtySaveBtn.addEventListener('click', () => {
+  // pendingAction stays — doSave will run it after success
+  openSavePopover();
+});
+dirtyThrowBtn.addEventListener('click', () => {
+  closeAllPopovers();
+  const action = pendingAction;
+  pendingAction = null;
+  if (action) action();
+});
+dirtyCancelBtn.addEventListener('click', () => cancelEverything());
+
+// Click-outside closes popovers. Treat all .examples-bar buttons as "inside"
+// so clicking a preset button can open a dirty-confirm without the document
+// handler immediately tearing it down.
+document.addEventListener('click', (e) => {
+  const inside = e.target.closest('.popover, button.example, .examples-label');
+  if (!inside) cancelEverything();
+});
+
+// Escape closes popovers
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && (
+    !savePopover.hidden || !scriptsPanel.hidden || !dirtyConfirm.hidden
+  )) {
+    e.preventDefault();
+    cancelEverything();
+  }
+});
+
+// Ctrl/Cmd+S — global, opens the Save popover
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault();
+    openSavePopover();
+  }
+});
+
+// First-boot baseline: pin whatever's currently in the editor as the
+// dirty-detection baseline. Subsequent boots reuse the stored baseline.
+if (!Saves.getLastSaved()) {
+  Saves.setLastSaved(null, codeEl.value);
+}
