@@ -46,13 +46,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 0.85rem;
   position: relative;
 }
-.examples-sep {
-  display: inline-block;
-  width: 1px;
-  height: 1.4rem;
-  background: #ddd;
-  margin: 0 0.3rem;
-}
 .examples-label {
   color: #888;
   font-style: italic;
@@ -69,6 +62,7 @@ button.example:hover:not(:disabled) {
   background: #ffd54f;
   border-color: #f9a825;
 }
+#save-script { margin-left: auto; }
 
 .popover {
   position: absolute;
@@ -246,30 +240,47 @@ main {
   background: #fff9c4;
   color: #5d4037;
   border-top: 3px solid #f9a825;
-  padding: 0.75rem 1rem;
   font-family: "JetBrains Mono", Menlo, Consolas, monospace;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  overflow-y: auto;
-  max-height: 45%;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  max-height: 55%;
+  flex-shrink: 0;
 }
-.cheatsheet h3 {
+.cheatsheet-toggle {
   font-family: system-ui, sans-serif;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: 0.4rem;
   color: #6d4c41;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0.55rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
 }
-.cheatsheet table { width: 100%; border-collapse: collapse; }
-.cheatsheet td { padding: 0.1rem 0; vertical-align: top; }
-.cheatsheet td:first-child {
+.cheatsheet-toggle:hover:not(:disabled) { background: rgba(0,0,0,0.05); }
+.cheatsheet-chevron { font-size: 0.85rem; color: #8b6f47; }
+.cheatsheet-body {
+  padding: 0 1rem 0.5rem;
+  overflow-y: auto;
+}
+.cheatsheet-body[hidden] { display: none; }
+.cheatsheet-body table { width: 100%; border-collapse: collapse; }
+.cheatsheet-body td { padding: 0; vertical-align: top; }
+.cheatsheet-body td:first-child {
   white-space: nowrap;
   padding-right: 1rem;
   color: #1e1e2e;
   font-weight: 600;
 }
-.cheatsheet tr.spacer td { padding-top: 0.4rem; }
+.cheatsheet-body tr.spacer td { padding-top: 0.25rem; }
 
 .coop {
   flex: 1;
@@ -277,15 +288,21 @@ main {
   align-items: center;
   justify-content: center;
   background: #f5f0d8;
-  padding: 1rem;
+  padding: 0.6rem;
+  min-width: 0;
+  min-height: 0;
 }
 #canvas {
   background: #fffdf5;
   border: 3px solid #8b6f47;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  display: block;
+  width: 100%;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
+  aspect-ratio: 1 / 1;
 }
 
 footer {

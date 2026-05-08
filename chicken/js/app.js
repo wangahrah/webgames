@@ -63,23 +63,46 @@ const EXAMPLES = {
 
 codeEl.value = localStorage.getItem('chicken.cluck') || STARTER;
 
+const ARG_HINTS = { number: ' N', word: ' name', text: ' "..."' };
+
 function buildCheatsheet() {
   const el = document.getElementById('cheatsheet');
   const verbRows = Object.entries(OPS).map(([name, def]) => {
     const short = def.aliases[0];
     const label = short ? `${short} / ${name}` : name;
-    const argHint = def.arg === 'number' ? ' N' : '';
+    const argHint = ARG_HINTS[def.arg] || '';
     return { cmd: label + argHint, desc: def.desc };
   });
   const all = [...verbRows, { spacer: true }, ...SYNTAX_HELP];
-  const html = '<h3>commands</h3><table>' +
-    all.map(r => r.spacer
-      ? '<tr class="spacer"><td></td><td></td></tr>'
-      : `<tr><td>${r.cmd}</td><td>${r.desc}</td></tr>`
-    ).join('') +
-    '</table>';
-  el.innerHTML = html;
+  el.innerHTML =
+    '<button class="cheatsheet-toggle" type="button" aria-expanded="true" aria-controls="cheatsheet-body">' +
+      '<span class="cheatsheet-title">commands</span>' +
+      '<span class="cheatsheet-chevron" aria-hidden="true">▾</span>' +
+    '</button>' +
+    '<div class="cheatsheet-body" id="cheatsheet-body"><table>' +
+      all.map(r => r.spacer
+        ? '<tr class="spacer"><td></td><td></td></tr>'
+        : `<tr><td>${r.cmd}</td><td>${r.desc}</td></tr>`
+      ).join('') +
+    '</table></div>';
+
+  const toggle = el.querySelector('.cheatsheet-toggle');
+  const body = el.querySelector('.cheatsheet-body');
+  const stored = localStorage.getItem('chicken.cheatsheet.open');
+  setCheatsheetOpen(toggle, body, stored !== 'false');
+  toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true';
+    setCheatsheetOpen(toggle, body, open);
+    localStorage.setItem('chicken.cheatsheet.open', String(open));
+  });
 }
+
+function setCheatsheetOpen(toggle, body, open) {
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  toggle.querySelector('.cheatsheet-chevron').textContent = open ? '▾' : '▸';
+  body.hidden = !open;
+}
+
 buildCheatsheet();
 
 codeEl.addEventListener('input', () => {
@@ -159,7 +182,7 @@ formatBtn.addEventListener('click', tidy);
 clearBtn.addEventListener('click', () => {
   Coop.stop();
   Coop.reset();
-  setStatus('cleared');
+  setStatus('reset');
 });
 
 document.querySelectorAll('button[data-example]').forEach(btn => {
