@@ -274,6 +274,38 @@ var Levels = (function () {
         '# A fence with no gap — but two swirly pads.\n' +
         '# They are wormholes. Step on one and see...\n',
     },
+    {
+      id: 'weave',
+      name: 'A Word of Your Own',
+      hint: 'up, over, down, along — teach the chicken your own word with to ... end',
+      start: { x: 125, y: 600, heading: 0 },
+      nest: { x: 950, y: 125 },
+      eggs: [
+        { x: 300, y: 600 },
+        { x: 450, y: 125 },
+        { x: 650, y: 600 },
+      ],
+      walls: [
+        { x: 225, y: 0, w: 50, h: 500 },
+        { x: 425, y: 250, w: 50, h: 500 },
+        { x: 625, y: 0, w: 50, h: 500 },
+        { x: 825, y: 250, w: 50, h: 500 },
+      ],
+      foxes: [],
+      par: 6,
+      solution:
+        'fd 225\nto hop\n  lt 90\n  fd 475\n  rt 90\n  fd 200\n  rt 90\n  fd 475\n  lt 90\nend\n' +
+        'repeat 2 [\n  hop\n  fd 200\n]\n',
+      starter:
+        '# Four fences weave up and down. The pattern repeats...\n' +
+        '# You can TEACH the chicken a new word:\n' +
+        '#   to hop\n' +
+        '#     lt 90\n' +
+        '#     fd 475\n' +
+        '#   end\n' +
+        '# ...then just write:  hop\n' +
+        'fd 225\n',
+    },
   ];
 
   function byId(id) {

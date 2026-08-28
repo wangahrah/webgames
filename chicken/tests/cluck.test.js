@@ -364,6 +364,113 @@ test('an empty program counts zero', () => {
   eq(cluckStatementCount('# just a note\n'), 0);
 });
 
+console.log('\nteaching new words (to ... end)');
+
+test('a taught word compiles to its body', () => {
+  const q = compileCluck('to wiggle\nfd 10\nrt 90\nend\nwiggle');
+  eq(q.length, 2);
+  eq(q[0].op, 'forward');
+});
+
+test('a word works inside repeat', () => {
+  const q = compileCluck('to hop\nfd 10\nend\nrepeat 3 [ hop ]');
+  eq(q.length, 3);
+});
+
+test('words can call earlier words', () => {
+  const q = compileCluck('to a\nfd 5\nend\nto b\na\na\nend\nb');
+  eq(q.length, 2);
+});
+
+test('a word calling itself is caught kindly', () => {
+  throws(() => compileCluck('to hop\nhop\nend\nhop'), "can't call itself");
+});
+
+test('a word can only use words taught before it', () => {
+  throws(() => compileCluck('to a\nb\nend\nto b\nfd 5\nend\na'), "don't know 'b'");
+});
+
+test('redefining a word is refused', () => {
+  throws(() => compileCluck('to hop\nfd 5\nend\nto hop\nfd 6\nend'), 'already taught');
+});
+
+test('shadowing chicken-speak is refused', () => {
+  throws(() => compileCluck('to forward\nfd 5\nend'), 'already chicken-speak');
+  throws(() => compileCluck('to repeat\nfd 5\nend'), 'already');
+});
+
+test('a word needs a name', () => {
+  throws(() => compileCluck('to 50 end'), 'needs a name');
+  throws(() => compileCluck('to [ fd 5 ]'), 'needs a name');
+});
+
+test('missing end is reported on the to line', () => {
+  const e = throws(() => compileCluck('to hop\nfd 5'), "missing an 'end'");
+  eq(e.line, 1);
+});
+
+test('to inside a loop is refused', () => {
+  throws(() => compileCluck('repeat 2 [ to hop fd 5 end ]'), "can't teach");
+});
+
+test('stray end is refused', () => {
+  throws(() => compileCluck('fd 5\nend'), 'nothing to end');
+});
+
+test('did-you-mean includes your own words', () => {
+  throws(() => compileCluck('to hop\nfd 5\nend\nhpp'), "did you mean 'hop'");
+});
+
+test('comments inside a taught word are fine', () => {
+  const q = compileCluck('to hop\n# crouch\nfd 5 # go\nend\nhop');
+  eq(q.length, 1);
+});
+
+console.log('\nstatement counting for taught words');
+
+test('teaching a word is free; calling it costs one', () => {
+  eq(cluckStatementCount('to hop\nfd 5\nrt 90\nend\nhop\nhop'), 2);
+});
+
+test('the weave solution prices the word in', () => {
+  const src = 'fd 225\nto hop\nlt 90\nfd 475\nrt 90\nfd 200\nrt 90\nfd 475\nlt 90\nend\n' +
+              'repeat 2 [\n  hop\n  fd 200\n]\n';
+  eq(cluckStatementCount(src), 4);
+});
+
+test('the same weave without a word costs more than any par can forgive', () => {
+  const src = 'fd 225\nrepeat 2 [\n  lt 90\n  fd 475\n  rt 90\n  fd 200\n  rt 90\n  fd 475\n  lt 90\n  fd 200\n]\n';
+  const n = cluckStatementCount(src);
+  if (n <= 6) throw new Error(`repeat-only weave costs ${n}, must beat par 6`);
+});
+
+console.log('\nformatter for taught words');
+
+test('a taught word indents like a block', () => {
+  eq(formatCluck('to hop\nfd 5\nrt 90\nend\nhop'),
+     'to hop\n  fd 5\n  rt 90\nend\nhop\n');
+});
+
+test('one-line definitions are tidied onto lines', () => {
+  eq(formatCluck('to hop fd 5 rt 90 end hop'),
+     'to hop\n  fd 5\n  rt 90\nend\nhop\n');
+});
+
+test('tidying taught words is idempotent', () => {
+  const tidy = 'to hop\n  fd 5\n  rt 90\nend\nhop\n';
+  eq(formatCluck(tidy), tidy);
+});
+
+test('comments inside a taught word stay put', () => {
+  eq(formatCluck('to hop\n# crouch\nfd 5\nend'),
+     'to hop\n  # crouch\n  fd 5\nend\n');
+});
+
+test('taught words survive a tidy with repeats and calls', () => {
+  const tidy = 'fd 225\nto hop\n  lt 90\n  fd 475\nend\nrepeat 2 [\n  hop\n  fd 200\n]\n';
+  eq(formatCluck(tidy), tidy);
+});
+
 console.log('\nexamples programs');
 
 // Pulled straight out of js/app.js rather than copied, so a new Examples

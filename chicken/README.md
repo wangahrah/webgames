@@ -36,7 +36,11 @@ inside a program overrides it until the next Reset.
   edge instead (see `slideDestination()`), which makes picking your approach
   row a lesson in dead reckoning. Wormhole pads teleport you to their twin
   mid-stride — you come out the far side still walking the rest of your `fd`
-  — and the pair you just used stays quiet until you step off it. Progress
+  — and the pair you just used stays quiet until you step off it. And
+  `to name … end` teaches the chicken a word of your own: the body replays
+  wherever you call it, teaching is free in the par count and a call costs
+  one, so naming a pattern is the cheapest move on the board (A Word of
+  Your Own is priced so the third star wants exactly that). Progress
   lives under `chicken.quest.v1`, and every level keeps its own draft, so
   wandering into a puzzle never eats your free-draw code.
 
@@ -291,3 +295,17 @@ chicken/
       (warp + ice compose)
 - [ ] The divider fence really does force the pad: no walking around it
 - [ ] 🌀 renders as a real glyph on the kids' machines
+
+### Teaching words (`to … end`)
+
+- [ ] The cheat sheet shows `to name … end — teach the chicken a new word`
+- [ ] `to hop` … `end` runs its body wherever you write `hop`
+- [ ] A word works inside `repeat`, and words can call earlier words
+- [ ] Teaching a word again, or renaming `forward`, gets a friendly
+      "pick another name" error with the right line highlighted
+- [ ] A word that calls itself reports "hop can't call itself" instead of
+      hanging the tab
+- [ ] `to` inside a loop, and stray `end`, both explain themselves
+- [ ] Tidy Up indents word bodies like repeat blocks and is idempotent
+- [ ] A Word of Your Own: the flat route wins one star, the loop wins two,
+      and the third star wants a taught word

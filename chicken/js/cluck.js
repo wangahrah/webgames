@@ -1,13 +1,19 @@
 // Cluck-speak parser: source text → command queue.
 //
 // Grammar:
-//   program  := statement*
+//   program  := (statement | def)*
+//   def      := "to" name statement* "end"   (top level only)
 //   statement := command | repeat | comment
 //   command  := word arg?
 //   arg      := number | word | string
 //   string   := '"' (any-but-quote)* '"'   (single line)
 //   repeat   := "repeat" number "[" statement* "]"
 //   comment  := "#" ... end of line (outside strings)
+//
+// `to` teaches the chicken a new word: the body is stored and replayed
+// wherever the word is called. Teaching is free in the quest statement
+// count; calling costs one, which is what makes a well-named word cheaper
+// than either flat code or a plain loop.
 
 class CluckError extends Error {
   constructor(message, line) { super(message); this.line = line; }
@@ -117,13 +123,20 @@ function parseText(stream) {
   return { value: t.value.slice(1, -1), line: t.line };
 }
 
-function parseStatement(stream) {
+function parseStatement(stream, defs) {
   const tok = stream.next();
   if (!tok) return null;
   const word = tok.value.toLowerCase();
 
   if (word === '[' || word === ']') {
     throw new CluckError(`unexpected '${tok.value}'`, tok.line);
+  }
+
+  if (word === 'to') {
+    throw new CluckError(`you can't teach a new word inside something else — teach it at the top of your program`, tok.line);
+  }
+  if (word === 'end') {
+    throw new CluckError(`'end' finishes a word you taught with 'to', but there is nothing to end here`, tok.line);
   }
 
   if (word === 'repeat') {
@@ -137,7 +150,7 @@ function parseStatement(stream) {
     }
     const body = [];
     while (!stream.eof() && stream.peek().value !== ']') {
-      const stmt = parseStatement(stream);
+      const stmt = parseStatement(stream, defs);
       if (stmt) body.push(stmt);
     }
     if (stream.eof()) {
@@ -148,11 +161,15 @@ function parseStatement(stream) {
   }
 
   const verb = resolveVerb(word);
+  if (!verb && defs && defs.has(word)) {
+    return { type: 'call', name: word, line: tok.line };
+  }
   if (!verb) {
     if (isStringToken(tok.value)) {
       throw new CluckError(`a string ${tok.value} doesn't go here on its own`, tok.line);
     }
-    const suggestion = suggestVerb(word);
+    const own = defs ? nearestFromList(word, [...defs.keys()]) : null;
+    const suggestion = own || suggestVerb(word);
     const hint = suggestion ? ` did you mean '${suggestion}'?` : '';
     throw new CluckError(`I don't know '${tok.value}'.${hint}`, tok.line);
   }
@@ -185,47 +202,114 @@ function parseStatement(stream) {
   return { type: 'cmd', verb, arg, line: tok.line };
 }
 
+// Words you may not teach, because the chicken already knows them.
+const RESERVED_WORDS = ['to', 'end', 'repeat'];
+
+function parseDefinition(stream, defs) {
+  const toTok = stream.next(); // the 'to'
+  const nameTok = stream.peek();
+  if (!nameTok || nameTok.value === '[' || nameTok.value === ']' ||
+      isStringToken(nameTok.value) || /^-?\d+(\.\d+)?$/.test(nameTok.value)) {
+    throw new CluckError(`'to' needs a name for your new word (like: to wiggle)`, toTok.line);
+  }
+  stream.next();
+  const name = nameTok.value.toLowerCase();
+
+  if (RESERVED_WORDS.includes(name)) {
+    throw new CluckError(`'${name}' is one of my words already — pick another name`, nameTok.line);
+  }
+  if (resolveVerb(name)) {
+    throw new CluckError(`'${name}' is already chicken-speak — pick a new name`, nameTok.line);
+  }
+  if (defs.has(name)) {
+    throw new CluckError(`you already taught me '${name}'`, nameTok.line);
+  }
+
+  const def = { type: 'def', name, body: [], line: toTok.line };
+  // Registered before the body is parsed so the word can be used inside
+  // itself; compileToQueue is what refuses actual recursion.
+  defs.set(name, def);
+  while (true) {
+    if (stream.eof()) {
+      throw new CluckError(`'to ${name}' is missing an 'end'`, toTok.line);
+    }
+    if (stream.peek().value.toLowerCase() === 'end') {
+      stream.next();
+      break;
+    }
+    const s = parseStatement(stream, defs);
+    if (s) def.body.push(s);
+  }
+  return def;
+}
+
 function parseProgram(source) {
   const stream = new TokenStream(tokenize(source));
   const stmts = [];
+  const defs = new Map();
   while (!stream.eof()) {
-    const s = parseStatement(stream);
+    if (stream.peek().value.toLowerCase() === 'to') {
+      stmts.push(parseDefinition(stream, defs));
+      continue;
+    }
+    const s = parseStatement(stream, defs);
     if (s) stmts.push(s);
   }
-  return stmts;
+  return { ast: stmts, defs };
 }
 
-function compileToQueue(ast) {
+const MAX_CALL_DEPTH = 64;
+
+function compileToQueue(ast, defs) {
   const queue = [];
-  function emit(node) {
+  function emit(node, stack) {
     if (node.type === 'cmd') {
       queue.push({ op: node.verb, arg: node.arg, line: node.line });
     } else if (node.type === 'repeat') {
-      for (let i = 0; i < node.n; i++) node.body.forEach(emit);
+      for (let i = 0; i < node.n; i++) node.body.forEach(n => emit(n, stack));
+    } else if (node.type === 'call') {
+      const def = defs.get(node.name);
+      if (!def) {
+        throw new CluckError(`I don't know '${node.name}'`, node.line);
+      }
+      if (stack.includes(node.name)) {
+        throw new CluckError(`${node.name} can't call itself — even chickens get dizzy`, node.line);
+      }
+      if (stack.length >= MAX_CALL_DEPTH) {
+        throw new CluckError(`that's far too many words inside words`, node.line);
+      }
+      stack.push(node.name);
+      def.body.forEach(n => emit(n, stack));
+      stack.pop();
     }
+    // 'def' nodes emit nothing — a word is called, not declared
   }
-  ast.forEach(emit);
+  ast.forEach(node => emit(node, []));
   return queue;
 }
 
 function compileCluck(source) {
-  return compileToQueue(parseProgram(source));
+  const { ast, defs } = parseProgram(source);
+  return compileToQueue(ast, defs);
 }
 
 // How many statements the kid actually wrote — SOURCE statements, not the
 // unrolled queue. `repeat 4 [ fd 100 rt 90 ]` is 3 (the repeat plus its two
 // commands), where eight flat lines would be 8. Quest mode's par scores this,
-// which is what makes a loop worth reaching for.
+// which is what makes a loop worth reaching for. Teaching a word with
+// `to … end` is free; calling it costs one — naming a pattern is the win.
 function cluckStatementCount(source) {
+  const { ast } = parseProgram(source);
   function count(nodes) {
     let n = 0;
     for (const node of nodes) {
+      if (node.type === 'def') continue;
       n++;
       if (node.type === 'repeat') n += count(node.body);
     }
     return n;
   }
-  return count(parseProgram(source));
+  return count(ast);
 }
 
 // Pretty-printer: re-emits source with each statement on its own line and
@@ -288,6 +372,24 @@ function formatCluck(source) {
     const startTok = take();
     const parts = [startTok.value];
     let trailing = startTok.trailing || null;
+
+    // Teaching a word: 'to name' rides one line, the body indents like a
+    // repeat block, 'end' closes it.
+    if (word === 'to') {
+      if (peek() && peek().type === 'word' && peek().value !== 'end') {
+        const nameTok = take();
+        parts.push(nameTok.value);
+        if (nameTok.trailing) trailing = nameTok.trailing;
+      }
+      emit(withTrailing(parts.join(' '), trailing));
+      depth++;
+      continue;
+    }
+    if (word === 'end') {
+      depth = Math.max(0, depth - 1);
+      emit(withTrailing('end', trailing));
+      continue;
+    }
 
     if (word === 'repeat') {
       if (isNum(peek())) {

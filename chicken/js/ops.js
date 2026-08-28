@@ -59,6 +59,7 @@ const OPS = {
 // Extra non-verb syntax shown on the cheat sheet
 const SYNTAX_HELP = [
   { cmd: 'repeat N [ … ]', desc: 'do something N times' },
+  { cmd: 'to name … end',  desc: 'teach the chicken a new word' },
   { cmd: '# comment',      desc: 'lines starting with # are notes' },
 ];
 
