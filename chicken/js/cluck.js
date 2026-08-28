@@ -212,6 +212,22 @@ function compileCluck(source) {
   return compileToQueue(parseProgram(source));
 }
 
+// How many statements the kid actually wrote — SOURCE statements, not the
+// unrolled queue. `repeat 4 [ fd 100 rt 90 ]` is 3 (the repeat plus its two
+// commands), where eight flat lines would be 8. Quest mode's par scores this,
+// which is what makes a loop worth reaching for.
+function cluckStatementCount(source) {
+  function count(nodes) {
+    let n = 0;
+    for (const node of nodes) {
+      n++;
+      if (node.type === 'repeat') n += count(node.body);
+    }
+    return n;
+  }
+  return count(parseProgram(source));
+}
+
 // Pretty-printer: re-emits source with each statement on its own line and
 // repeat blocks indented. Preserves comments (full-line and inline) and
 // quoted strings as single tokens.

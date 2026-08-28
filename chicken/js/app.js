@@ -130,8 +130,17 @@ function setCheatsheetOpen(toggle, body, open) {
 
 buildCheatsheet();
 
+// Where the editor's contents get remembered depends on which mode you are
+// in: free draw has one draft, and each quest level keeps its own, so
+// wandering into a puzzle and back never eats your drawing's code.
+function persistDraft(code) {
+  const lv = Quest.current();
+  if (lv) Quest.setDraft(lv.id, code);
+  else localStorage.setItem('chicken.cluck', code);
+}
+
 codeEl.addEventListener('input', () => {
-  localStorage.setItem('chicken.cluck', codeEl.value);
+  persistDraft(codeEl.value);
 });
 
 function setStatus(msg, isError = false) {
@@ -144,9 +153,10 @@ function run() {
     setStatus('already running — press Stop first', true);
     return;
   }
-  let queue;
+  let queue, statements;
   try {
     queue = compileCluck(codeEl.value);
+    statements = cluckStatementCount(codeEl.value);
   } catch (e) {
     if (e instanceof CluckError) {
       setStatus(`line ${e.line}: ${e.message}`, true);
@@ -160,10 +170,18 @@ function run() {
     setStatus('nothing to run');
     return;
   }
+  // Running a level always starts it over, so a bump is one keypress from a
+  // retry rather than a puzzle about leftover state.
+  if (Quest.isActive()) Coop.reset();
+
   setStatus(`running ${queue.length} command${queue.length === 1 ? '' : 's'}…`);
-  Coop.play(queue, (interrupted) => {
-    if (interrupted) setStatus('stopped');
-    else setStatus(`done — ran ${queue.length} command${queue.length === 1 ? '' : 's'}`);
+  Coop.play(queue, (interrupted, result) => {
+    if (interrupted) { setStatus('stopped'); return; }
+    if (!result) {
+      setStatus(`done — ran ${queue.length} command${queue.length === 1 ? '' : 's'}`);
+      return;
+    }
+    reportQuestResult(result, statements);
   });
 }
 
@@ -186,7 +204,7 @@ function tidy() {
     return;
   }
   codeEl.value = after;
-  localStorage.setItem('chicken.cluck', after);
+  persistDraft(after);
   setStatus('tidied');
 }
 
@@ -195,7 +213,7 @@ function loadExample(key, label) {
   if (!program) return;
   Coop.stop();
   codeEl.value = program;
-  localStorage.setItem('chicken.cluck', program);
+  persistDraft(program);
   Saves.setLastSaved(null, program);
   setStatus(`loaded: ${label}`);
   renderScriptsList();
@@ -207,7 +225,7 @@ formatBtn.addEventListener('click', tidy);
 clearBtn.addEventListener('click', () => {
   Coop.stop();
   Coop.reset();
-  setStatus('reset');
+  setStatus(Quest.isActive() ? 'level reset' : 'reset');
 });
 
 document.querySelectorAll('button[data-example]').forEach(btn => {
@@ -284,6 +302,114 @@ animalBtn.addEventListener('click', () => {
   }
 });
 
+// ---- Quest mode -------------------------------------------------------------
+// Free draw asks nothing of you. A quest hands you a yard with fences, eggs
+// and the odd fox, and your program either solves it or it doesn't. The level
+// table lives in js/levels.js; everything here is the picker and the scoring
+// readout.
+
+const questBtn = document.getElementById('quest-btn');
+const questExitBtn = document.getElementById('quest-exit');
+const questPanel = document.getElementById('quest-panel');
+const questList = document.getElementById('quest-list');
+
+function starString(n) {
+  return '★'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n));
+}
+
+function renderQuestList() {
+  const active = Quest.current();
+  questList.innerHTML = '';
+  for (const { level, progress } of Quest.list()) {
+    const row = document.createElement('button');
+    row.className = 'quest-row';
+    if (active && active.id === level.id) row.classList.add('current');
+    row.title = level.hint;
+    row.innerHTML =
+      `<span class="quest-name">${level.name}</span>` +
+      `<span class="quest-stars${progress.stars ? ' earned' : ''}">${starString(progress.stars)}</span>`;
+    row.addEventListener('click', () => {
+      confirmIfDirty(() => {
+        enterLevel(level.id);
+        closeAllPopovers();
+      });
+    });
+    questList.appendChild(row);
+  }
+}
+
+function enterLevel(id) {
+  const lv = Quest.enter(id);
+  if (!lv) return;
+  Coop.stop();
+  Coop.setLevel(lv);
+  const draft = Quest.getDraft(id);
+  codeEl.value = (draft !== null && draft.trim() !== '') ? draft : lv.starter;
+  Quest.setDraft(id, codeEl.value);
+  questBtn.textContent = `🥚 ${lv.name} ▾`;
+  questExitBtn.hidden = false;
+  document.body.classList.add('quest-mode');
+  setStatus(`${lv.name} — ${lv.hint}`);
+}
+
+function exitQuest() {
+  Coop.stop();
+  Quest.leave();
+  Coop.clearLevel();
+  codeEl.value = localStorage.getItem('chicken.cluck') || STARTER;
+  questBtn.textContent = '🥚 Quest ▾';
+  questExitBtn.hidden = true;
+  document.body.classList.remove('quest-mode');
+  setStatus('free draw');
+}
+
+function reportQuestResult(result, statements) {
+  const lv = Quest.current();
+  if (!lv) return;
+  const full = {
+    outcome: result.outcome,
+    eggsGot: result.eggsGot,
+    eggsTotal: result.eggsTotal,
+    commands: statements,
+    par: lv.par,
+  };
+  const { stars } = Quest.record(lv.id, full);
+
+  if (result.outcome === 'win') {
+    const bits = [`🎉 solved!  ${starString(stars)}`];
+    if (result.eggsTotal > 0) bits.push(`${result.eggsGot}/${result.eggsTotal} eggs`);
+    bits.push(`${statements} command${statements === 1 ? '' : 's'} (par ${lv.par})`);
+    if (stars < 3 && result.eggsGot >= result.eggsTotal) {
+      bits.push('— try it with fewer commands!');
+    }
+    setStatus(bits.join('  ·  '));
+    renderQuestList();
+    return;
+  }
+  const msg = {
+    bump: '🚧 you bumped into a fence — press Run to try again',
+    caught: '🦊 the fox got you — press Run to try again',
+    unfinished: '🤔 your program ended before reaching the basket',
+  }[result.outcome] || 'stopped';
+  setStatus(msg, result.outcome !== 'unfinished');
+}
+
+questBtn.addEventListener('click', () => {
+  if (!questPanel.hidden) {
+    closeAllPopovers();
+  } else {
+    closeAllPopovers();
+    renderQuestList();
+    questPanel.hidden = false;
+    questBtn.setAttribute('aria-expanded', 'true');
+  }
+});
+
+questExitBtn.addEventListener('click', () => {
+  closeAllPopovers();
+  exitQuest();
+});
+
 // ---- Save / Load / Delete ---------------------------------------------------
 
 const saveBtn = document.getElementById('save-script');
@@ -304,6 +430,9 @@ let pendingAction = null;
 let saveMode = 'new'; // 'new' | 'replace'
 
 function isDirty() {
+  // Quest drafts save themselves per level, so there is nothing to lose and
+  // no reason to interrupt the kid with a "save first?" prompt.
+  if (Quest.isActive()) return false;
   const draft = codeEl.value;
   const last = Saves.getLastSaved();
   if (last) return draft !== last.code;
@@ -313,6 +442,8 @@ function isDirty() {
 function closeAllPopovers() {
   animalPanel.hidden = true;
   animalBtn.setAttribute('aria-expanded', 'false');
+  questPanel.hidden = true;
+  questBtn.setAttribute('aria-expanded', 'false');
   savePopover.hidden = true;
   scriptsPanel.hidden = true;
   dirtyConfirm.hidden = true;
@@ -413,7 +544,7 @@ function loadSaved(name) {
   if (!entry) return;
   Coop.stop();
   codeEl.value = entry.code;
-  localStorage.setItem('chicken.cluck', entry.code);
+  persistDraft(entry.code);
   Saves.setLastSaved(entry.name, entry.code);
   setStatus(`loaded: ${entry.name}`);
   renderScriptsList();
@@ -548,7 +679,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && (
     !savePopover.hidden || !scriptsPanel.hidden || !dirtyConfirm.hidden ||
-    !animalPanel.hidden
+    !animalPanel.hidden || !questPanel.hidden
   )) {
     e.preventDefault();
     cancelEverything();

@@ -38,6 +38,38 @@ const Coop = (function () {
   // current animal mid-program without disturbing this.
   let defaultAnimal = DEFAULT_ANIMAL;
 
+  // ---- the world ------------------------------------------------------------
+  //
+  // Every command works in *world* units. In free draw the world is simply the
+  // canvas, so scale is 1 and nothing below this line changes behaviour. In
+  // quest mode the world is a fixed 1000x750 (Levels.WORLD) letterboxed into
+  // whatever shape the canvas happens to be, so a level is the same puzzle at
+  // any window size and `fd 100` always means the same distance.
+  const world = { w: W, h: H, scale: 1, ox: 0, oy: 0 };
+
+  // The level being played, or null for free draw.
+  let level = null;
+  // Live run state for that level. `nestArmed` stops a level whose basket sits
+  // on the start square from being won before the animal has gone anywhere.
+  let quest = null;
+
+  function blankQuest() {
+    return { eggs: new Set(), nestArmed: false, outcome: null };
+  }
+
+  function layoutWorld() {
+    if (level) {
+      world.w = Levels.WORLD.w;
+      world.h = Levels.WORLD.h;
+      world.scale = Math.min(W / world.w, H / world.h);
+      world.ox = (W - world.w * world.scale) / 2;
+      world.oy = (H - world.h * world.scale) / 2;
+    } else {
+      world.w = W; world.h = H;
+      world.scale = 1; world.ox = 0; world.oy = 0;
+    }
+  }
+
   const COLOR_MAP = {
     red:    '#e53935',
     pink:   '#ec407a',
@@ -86,6 +118,32 @@ const Coop = (function () {
     osc.stop(t0 + 0.1);
   }
 
+  // Same shape as playCluck, different curve: a short low thud for walking
+  // into a fence, and a longer falling tone for being caught.
+  function playTone(type, fromHz, toHz, seconds, peak) {
+    const ac = ensureAudio();
+    if (!ac) return;
+    if (ac.state === 'suspended') ac.resume();
+    const t0 = ac.currentTime;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(fromHz, t0);
+    osc.frequency.exponentialRampToValueAtTime(toHz, t0 + seconds * 0.9);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + seconds);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(t0);
+    osc.stop(t0 + seconds + 0.02);
+  }
+  function playBump() { playTone('triangle', 180, 90, 0.14, 0.22); }
+  function playCaught() { playTone('sawtooth', 420, 70, 0.5, 0.18); }
+  function playWin() {
+    playTone('square', 520, 780, 0.12, 0.16);
+    setTimeout(() => playTone('square', 780, 1040, 0.18, 0.16), 120);
+  }
+
   let queue = [];
   let qi = 0;
   let opStart = 0;
@@ -102,11 +160,17 @@ const Coop = (function () {
     chicken.animal = defaultAnimal;
     speed.msPerUnit = BASE_SPEED.msPerUnit;
     speed.msPerDeg = BASE_SPEED.msPerDeg;
-    tctx.clearRect(0, 0, W, H);
+    if (level) {
+      quest = blankQuest();
+      // A basket you do not already stand on is live from the start; only one
+      // sitting on the start square has to wait for you to leave it.
+      quest.nestArmed = nestDistance(chicken.x, chicken.y) > Levels.NEST_R;
+    }
+    clearTrail();
     render();
   }
 
-  function clearTrail() { tctx.clearRect(0, 0, W, H); }
+  function clearTrail() { tctx.clearRect(0, 0, world.w, world.h); }
 
   // ---- keeping the surfaces matched to the element -------------------------
 
@@ -123,31 +187,50 @@ const Coop = (function () {
 
   let sized = false;
 
-  // Resize both surfaces to w x h CSS pixels, carrying the existing drawing
-  // across. The artwork stays centred: it is copied in at half the delta and
-  // the animal (plus any move in flight) shifts by the same amount, so
-  // resizing the window never tears a drawing away from the animal that made
-  // it.
-  function resizeSurfaces(w, h) {
+  // Allocate the offscreen trail at w x h world units, optionally blitting the
+  // old one in at an offset.
+  function allocTrail(w, h, carryFrom, dx, dy, srcW, srcH) {
     const dpr = currentDpr();
-    const oldTrail = trail, oldW = W, oldH = H;
-    const dx = Math.round((w - oldW) / 2);
-    const dy = Math.round((h - oldH) / 2);
-
     const next = document.createElement('canvas');
     next.width = Math.round(w * dpr);
     next.height = Math.round(h * dpr);
     const nctx = next.getContext('2d');
     useCssPixels(nctx, dpr);
-    if (sized) nctx.drawImage(oldTrail, dx, dy, oldW, oldH);
+    if (carryFrom) nctx.drawImage(carryFrom, dx, dy, srcW, srcH);
     trail = next;
     tctx = nctx;
+  }
+
+  // Match both surfaces to w x h CSS pixels. In free draw the artwork stays
+  // centred: it is copied in at half the delta and the animal (plus any move
+  // in flight) shifts by the same amount, so resizing the window never tears a
+  // drawing away from the animal that made it. In quest mode the trail is a
+  // fixed world-sized surface, so there is nothing to carry.
+  function resizeSurfaces(w, h) {
+    const dpr = currentDpr();
+    const oldTrail = trail, oldW = W, oldH = H;
 
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     useCssPixels(ctx, dpr);
-
     W = w; H = h;
+
+    if (level) {
+      // The quest trail is a fixed world-sized surface blitted into the
+      // letterbox rect, so a resize is nothing but a new layout — no artwork
+      // to shift, no drift, no re-centring of the animal.
+      layoutWorld();
+      sized = true;
+      render();
+      return;
+    }
+
+    // Free draw: the world *is* the canvas, so the drawing has to be carried
+    // across by hand and kept centred under the animal that made it.
+    const dx = Math.round((w - oldW) / 2);
+    const dy = Math.round((h - oldH) / 2);
+    allocTrail(w, h, sized ? oldTrail : null, dx, dy, oldW, oldH);
+    layoutWorld();
     HOME.x = W / 2; HOME.y = H / 2;
     chicken.x += dx; chicken.y += dy;
     if (opFrom) { opFrom.x += dx; opFrom.y += dy; }
@@ -305,10 +388,10 @@ const Coop = (function () {
     const bw = tw + 2 * padding;
     const bh = th + 2 * padding;
 
-    // Position above the chicken, clamped to canvas.
+    // Position above the chicken, clamped to the world.
     let bx = cx - bw / 2;
     let by = cy - 50 - bh;
-    bx = Math.max(8, Math.min(W - bw - 8, bx));
+    bx = Math.max(8, Math.min(world.w - bw - 8, bx));
     by = Math.max(8, by);
 
     const r = 8;
@@ -347,14 +430,166 @@ const Coop = (function () {
     ctx.restore();
   }
 
+  // ---- level furniture ------------------------------------------------------
+  //
+  // Drawn every frame, never stamped into `trail` — otherwise `clear` / `cs`
+  // would wipe the fences out from under the puzzle.
+
+  const EMOJI_FONT = 'system-ui, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"';
+
+  function roundRectPath(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  }
+
+  function glyph(text, x, y, size) {
+    ctx.save();
+    ctx.font = `${size}px ${EMOJI_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Opaque fill, always: a colour emoji still picks up the current
+    // fillStyle's alpha, so inheriting the fox halo's 10% red washes out
+    // every glyph drawn after it.
+    ctx.fillStyle = '#000';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  // The yard itself, under the trail.
+  function drawLevelGround() {
+    ctx.save();
+    ctx.fillStyle = '#f4faf1';
+    ctx.fillRect(0, 0, world.w, world.h);
+    ctx.strokeStyle = '#9ccc9c';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, world.w - 4, world.h - 4);
+    ctx.restore();
+  }
+
+  // Everything the animal can interact with, over the trail.
+  function drawLevelProps() {
+    ctx.save();
+
+    for (const w of level.walls) {
+      ctx.fillStyle = '#c9a271';
+      ctx.fillRect(w.x, w.y, w.w, w.h);
+      ctx.strokeStyle = '#8a6234';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(w.x, w.y, w.w, w.h);
+      // Plank lines, along the long axis, so a fence reads as a fence.
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(138, 98, 52, 0.55)';
+      ctx.beginPath();
+      if (w.h >= w.w) {
+        for (let y = w.y + 40; y < w.y + w.h; y += 40) {
+          ctx.moveTo(w.x, y); ctx.lineTo(w.x + w.w, y);
+        }
+      } else {
+        for (let x = w.x + 40; x < w.x + w.w; x += 40) {
+          ctx.moveTo(x, w.y); ctx.lineTo(x, w.y + w.h);
+        }
+      }
+      ctx.stroke();
+    }
+
+    // Foxes, with their danger radius shown so it is never a mystery.
+    for (const f of level.foxes) {
+      ctx.fillStyle = 'rgba(229, 57, 53, 0.10)';
+      ctx.strokeStyle = 'rgba(229, 57, 53, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, Levels.FOX_R + Levels.ANIMAL_R, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      glyph('🦊', f.x, f.y, 40);
+    }
+
+    // The basket. Dashed while it is still waiting for you to leave it.
+    const nest = level.nest;
+    ctx.strokeStyle = quest.nestArmed ? 'rgba(67, 160, 71, 0.75)' : 'rgba(120, 120, 120, 0.4)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash(quest.nestArmed ? [] : [6, 6]);
+    ctx.beginPath();
+    ctx.arc(nest.x, nest.y, Levels.NEST_R, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    glyph('🧺', nest.x, nest.y, 46);
+
+    // Eggs. Collected ones stay as a faint ghost so the route is legible.
+    for (let i = 0; i < level.eggs.length; i++) {
+      const e = level.eggs[i];
+      const got = quest.eggs.has(i);
+      ctx.globalAlpha = got ? 0.22 : 1;
+      glyph('🥚', e.x, e.y, 30);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+
+  // Screen-space overlay: which level, eggs so far, and the outcome once the
+  // run has ended.
+  const OUTCOME_TEXT = {
+    win: '🎉 you made it!',
+    bump: '🚧 bumped the fence',
+    caught: '🦊 the fox got you',
+    unfinished: '🤔 out of commands',
+  };
+
+  function drawHud() {
+    const total = level.eggs.length;
+    const bits = [level.name];
+    if (total > 0) bits.push(`🥚 ${quest.eggs.size}/${total}`);
+    if (quest.outcome) bits.push(OUTCOME_TEXT[quest.outcome] || '');
+    const text = bits.filter(Boolean).join('   ');
+
+    ctx.save();
+    ctx.font = 'bold 14px system-ui, sans-serif';
+    const tw = Math.ceil(ctx.measureText(text).width);
+    const pad = 10;
+    roundRectPath(ctx, 12, 12, tw + 2 * pad, 30, 8);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = quest.outcome === 'win' ? '#43a047'
+                    : quest.outcome ? '#e53935' : '#bbb';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 12 + pad, 28);
+    ctx.restore();
+  }
+
   function render() {
     ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    // Everything below draws in world units; in free draw this transform is
+    // the identity, so the original code path is unchanged.
+    ctx.translate(world.ox, world.oy);
+    ctx.scale(world.scale, world.scale);
+    if (level) drawLevelGround();
     // Explicit destination size: the trail's backing store is in device
     // pixels, and we are drawing under a CSS-pixel transform.
-    ctx.drawImage(trail, 0, 0, W, H);
+    ctx.drawImage(trail, 0, 0, world.w, world.h);
+    if (level) drawLevelProps();
     drawAnimal(chicken.x, chicken.y, chicken.heading);
-    drawCompass(chicken.heading);
     if (chicken.bubble) drawBubble(chicken.bubble, chicken.x, chicken.y);
+    ctx.restore();
+
+    drawCompass(chicken.heading);
+    if (level) drawHud();
   }
 
   function durationFor(op) {
@@ -399,8 +634,11 @@ const Coop = (function () {
       case 'pendown': chicken.penDown = true; break;
       case 'home':
         chicken.x = HOME.x; chicken.y = HOME.y; chicken.heading = HOME.heading;
+        // Teleporting back onto the basket must not count as arriving at it.
+        if (level) quest.nestArmed = nestDistance(chicken.x, chicken.y) > Levels.NEST_R;
         break;
       case 'clear': clearTrail(); break;
+      // (`clear` wipes the pen trail only — level furniture lives in render())
       case 'color':
         if (op.arg === 'rainbow') {
           chicken.colorMode = 'rainbow';
@@ -421,6 +659,72 @@ const Coop = (function () {
       case 'lay':   stampEgg(chicken.x, chicken.y); break;
       case 'cluck': playCluck(); break;
     }
+  }
+
+  // ---- quest collision ------------------------------------------------------
+  //
+  // Cluck has no runtime control flow — `repeat` is unrolled at compile time —
+  // so a program cannot react to hitting something. All of that lives here:
+  // the renderer stops playback and reports why.
+
+  let questWalls = [];
+
+  function nestDistance(x, y) {
+    return Math.hypot(x - level.nest.x, y - level.nest.y);
+  }
+
+  // Move the animal from (x0,y0) toward (x1,y1). Returns where it actually
+  // got to and what stopped it, and collects any eggs brushed on the way.
+  function resolveMove(x0, y0, x1, y1) {
+    const wallHit = Levels.segmentHitsWalls(x0, y0, x1, y1, questWalls, Levels.ANIMAL_R);
+    const foxHit = level.foxes.length
+      ? Levels.segmentHitsCircles(x0, y0, x1, y1, level.foxes,
+                                  Levels.FOX_R + Levels.ANIMAL_R)
+      : null;
+    const nestHit = quest.nestArmed
+      ? Levels.segmentHitsCircles(x0, y0, x1, y1, [level.nest], Levels.NEST_R)
+      : null;
+
+    let stop = null;
+    const consider = (hit, outcome) => {
+      if (hit && (!stop || hit.t < stop.t)) stop = { t: hit.t, outcome };
+    };
+    consider(wallHit, 'bump');
+    consider(foxHit, 'caught');
+    consider(nestHit, 'win');
+
+    const t = stop ? stop.t : 1;
+    const ex = x0 + (x1 - x0) * t;
+    const ey = y0 + (y1 - y0) * t;
+
+    for (const i of Levels.eggsCollectedBy(x0, y0, ex, ey, level.eggs, quest.eggs)) {
+      quest.eggs.add(i);
+      playCluck();
+    }
+
+    // The basket only goes live once the animal has left it, so a level whose
+    // basket sits on the start square is not won before it begins. This runs
+    // per frame on a short sub-segment, so it is effectively continuous.
+    if (!quest.nestArmed &&
+        Math.max(nestDistance(x0, y0), nestDistance(ex, ey)) > Levels.NEST_R) {
+      quest.nestArmed = true;
+    }
+
+    return { x: ex, y: ey, outcome: stop ? stop.outcome : null };
+  }
+
+  function endQuestRun(outcome) {
+    quest.outcome = outcome;
+    chicken.bubble = null;
+    render();
+    if (outcome === 'win') playWin();
+    else if (outcome === 'caught') playCaught();
+    else playBump();
+    finish(false, {
+      outcome,
+      eggsGot: quest.eggs.size,
+      eggsTotal: level.eggs.length,
+    });
   }
 
   function startOp() {
@@ -461,8 +765,13 @@ const Coop = (function () {
 
     if (op.op === 'forward' || op.op === 'back') {
       const tgt = targetOf(op, opFrom);
-      const newX = opFrom.x + (tgt.x - opFrom.x) * t;
-      const newY = opFrom.y + (tgt.y - opFrom.y) * t;
+      let newX = opFrom.x + (tgt.x - opFrom.x) * t;
+      let newY = opFrom.y + (tgt.y - opFrom.y) * t;
+      let outcome = null;
+      if (level) {
+        const moved = resolveMove(chicken.x, chicken.y, newX, newY);
+        newX = moved.x; newY = moved.y; outcome = moved.outcome;
+      }
       if (chicken.penDown) {
         tctx.strokeStyle = chicken.color;
         tctx.lineWidth = 2;
@@ -473,6 +782,7 @@ const Coop = (function () {
         tctx.stroke();
       }
       chicken.x = newX; chicken.y = newY;
+      if (outcome) { endQuestRun(outcome); return; }
     } else if (op.op === 'right' || op.op === 'left') {
       const tgt = targetOf(op, opFrom);
       chicken.heading = opFrom.heading + (tgt.heading - opFrom.heading) * t;
@@ -512,9 +822,23 @@ const Coop = (function () {
     requestAnimationFrame(tick);
   }
 
-  function finish(interrupted) {
+  // Free draw only ever cared about `interrupted`; quest mode needs to know
+  // *how* the run ended, so a second argument carries the result. Existing
+  // callers that take one parameter are unaffected.
+  function finish(interrupted, result) {
     running = false;
-    if (onDone) { const cb = onDone; onDone = null; cb(interrupted); }
+    let res = result || null;
+    if (level && !res) {
+      // Ran off the end of the program without reaching anything.
+      if (!quest.outcome && !interrupted) quest.outcome = 'unfinished';
+      res = {
+        outcome: quest.outcome || 'stopped',
+        eggsGot: quest.eggs.size,
+        eggsTotal: level.eggs.length,
+      };
+      render();
+    }
+    if (onDone) { const cb = onDone; onDone = null; cb(interrupted, res); }
   }
 
   function play(q, doneCb) {
@@ -552,5 +876,43 @@ const Coop = (function () {
   }
   function getDefaultAnimal() { return defaultAnimal; }
 
-  return { play, stop, reset, render, isRunning, setDefaultAnimal, getDefaultAnimal };
+  // ---- entering and leaving a level -----------------------------------------
+
+  function setLevel(lv) {
+    level = lv;
+    quest = blankQuest();
+    questWalls = Levels.wallsOf(lv);
+    HOME.x = lv.start.x;
+    HOME.y = lv.start.y;
+    HOME.heading = lv.start.heading || 0;
+    layoutWorld();
+    allocTrail(world.w, world.h, null);
+    reset();
+  }
+
+  function clearLevel() {
+    level = null;
+    quest = null;
+    questWalls = [];
+    layoutWorld();
+    HOME.x = W / 2; HOME.y = H / 2; HOME.heading = 0;
+    allocTrail(world.w, world.h, null);
+    reset();
+  }
+
+  function getQuest() {
+    if (!level) return null;
+    return {
+      levelId: level.id,
+      eggsGot: quest.eggs.size,
+      eggsTotal: level.eggs.length,
+      outcome: quest.outcome,
+    };
+  }
+
+  return {
+    play, stop, reset, render, isRunning,
+    setDefaultAnimal, getDefaultAnimal,
+    setLevel, clearLevel, getQuest,
+  };
 })();

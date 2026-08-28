@@ -31,6 +31,17 @@
             title="Choose your animal">🐾 Animal ▾</button>
     <button id="save-script" class="example" title="Ctrl+S">💾 Save</button>
     <button id="my-scripts" class="example" aria-haspopup="true" aria-expanded="false">📂 My Scripts ▾</button>
+    <button id="quest-btn" class="example" aria-haspopup="true" aria-expanded="false"
+            title="Puzzles to solve with your program">🥚 Quest ▾</button>
+    <button id="quest-exit" class="example" hidden title="Back to free drawing">← Free Draw</button>
+
+    <div id="quest-panel" class="popover" hidden>
+      <div class="popover-label">pick a puzzle</div>
+      <div id="quest-list" class="quest-list"></div>
+      <div class="popover-hint">
+        ★ reach the basket · ★ collect every egg · ★ use few commands
+      </div>
+    </div>
 
     <div id="animal-panel" class="popover" hidden>
       <div class="popover-label">who do you want to be?</div>
@@ -76,6 +87,9 @@
 
   <script src="js/ops.js"></script>
   <script src="js/cluck.js"></script>
+  <!-- levels + quest before coop: the renderer reads Levels at play time -->
+  <script src="js/levels.js"></script>
+  <script src="js/quest.js"></script>
   <script src="js/coop.js"></script>
   <script src="js/saves.js"></script>
   <script src="js/app.js"></script>

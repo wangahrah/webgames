@@ -79,7 +79,9 @@ button.example:hover:not(:disabled) {
   min-width: 16rem;
   z-index: 10;
 }
-#save-popover, #dirty-confirm, #scripts-panel, #animal-panel { left: 1rem; }
+#save-popover, #dirty-confirm, #scripts-panel, #animal-panel,
+#quest-panel { left: 1rem; }
+#quest-panel { max-width: 22rem; }
 #animal-panel { max-width: 26rem; }
 #scripts-panel { max-width: 22rem; }
 
@@ -351,3 +353,47 @@ footer {
   min-height: 2rem;
 }
 #status.error { color: #c62828; }
+
+/* Quest mode: the level picker, and the button that says which one you're on. */
+.quest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.quest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #f5f5f5;
+  font-family: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.quest-row:hover { background: #ffd54f; border-color: #f9a825; }
+.quest-row.current { background: #fff3c4; border-color: #f9a825; }
+.quest-name { color: #333; }
+.quest-stars {
+  color: #ccc;
+  letter-spacing: 0.05em;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.quest-stars.earned { color: #f9a825; }
+
+body.quest-mode #quest-btn {
+  background: #fff3c4;
+  border-color: #f9a825;
+  font-weight: 600;
+}
+body.quest-mode #quest-exit {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+}

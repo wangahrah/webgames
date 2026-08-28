@@ -18,6 +18,18 @@ render anything newer as a tofu box.
 The picker is a *setting* (stored under `chicken.animal`), not part of your
 script, so loading someone else's program does not change who you are. `be`
 inside a program overrides it until the next Reset.
+- **Quest** (live): puzzles. The canvas becomes a yard with fences to route
+  around, eggs to collect, the odd fox, and a basket to reach. You still write
+  a program — that is the whole point — but now it either solves the level or
+  it doesn't. Levels come from `js/levels.js`; adding one is a table row, the
+  same as adding a verb. Three stars per level: reach the basket, collect every
+  egg, and do it inside `par` **source statements** — so `repeat 4 [ fd 100 rt
+  90 ]` (3) beats eight flat lines (8). That is the nudge toward loops.
+
+  Bumping a fence stops the run gently and you press Run again. A fox ends it.
+  Progress lives under `chicken.quest.v1`, and every level keeps its own draft,
+  so wandering into a puzzle never eats your free-draw code.
+
 - **Python** (planned, phase 3): Skulpt-powered real Python with a `chicken`
   module exposing the same verbs.
 
@@ -39,14 +51,52 @@ stretch one rectangle into another and turn the compass into an oval.
   Python text ──┘
 ```
 
+### World coordinates (quest mode)
+
+Free draw works in CSS pixels: the world *is* the canvas. Quest levels can't,
+because the canvas has no fixed size — a level authored in screen pixels would
+be unsolvable at one window shape and trivial at another. So a level lives in a
+fixed **1000 × 750 world** (`Levels.WORLD`) that `coop.js` letterboxes into
+whatever the canvas currently is. `fd 100` therefore means the same distance on
+every machine, and the quest trail is a fixed world-sized surface, which makes
+resizing a level free: nothing to shift, nothing to drift.
+
+`layoutWorld()` sets `scale` to 1 and the offsets to 0 in free draw, so the
+original code path is untouched by any of this.
+
+### Collision
+
+Cluck has no runtime control flow — `repeat` is unrolled at compile time — so a
+program cannot react to hitting something. All of it lives in the renderer:
+`resolveMove()` swept-tests each frame's sub-segment against the fences (the
+world border included), the foxes and the basket, collects any egg brushed on
+the way, and stops playback with an outcome. The geometry itself is pure
+functions in `js/levels.js`, which is why it can be tested headlessly.
+
+Level furniture is drawn every frame in `render()`, never stamped into the
+trail — otherwise `clear` / `cs` would wipe the fences out from under the
+puzzle.
+
 ## Running tests
 
-Parser and storage. The renderer is verified by play.
+```
+node tests/cluck.test.js          # parser, formatter, statement counting
+node tests/saves.test.js          # named-script storage
+node tests/levels.test.js         # level table, collision geometry, stars
+node tests/quest.test.js          # quest progress + per-level drafts
+node tests/coop.headless.test.js  # the real renderer, in headless Chrome
+```
 
-```
-node tests/cluck.test.js
-node tests/saves.test.js
-```
+The first four are plain Node over a `vm` sandbox, no deps. The fifth loads
+`index.html` in headless Chrome with `requestAnimationFrame` and
+`performance.now` replaced by a hand-cranked clock, so it plays every level's
+answer key through the actual playback loop and asserts the outcome. It
+**skips** if no Chrome is installed (set `CHROME_BIN` to point at one).
+
+Each level in `js/levels.js` carries a `solution` — a program that solves it.
+It is never shown in the UI; it exists so the tests can prove every level is
+still winnable, still collects every egg, and is still inside par. Move a
+fence, break the test.
 
 ## Smoke checklist (visual things tests don't catch)
 
@@ -126,10 +176,38 @@ chicken/
 ├── js/
 │   ├── ops.js         verb + animal tables (single source of truth)
 │   ├── cluck.js       Cluck-speak parser → command queue
+│   ├── levels.js      quest level table + collision geometry (no DOM)
+│   ├── quest.js       quest session, stars, per-level drafts (no DOM)
 │   ├── coop.js        canvas renderer, chicken sprite, compass, playback
 │   ├── saves.js       named-script storage (localStorage)
 │   └── app.js         wiring (buttons, localStorage, cheat sheet build)
 └── tests/
-    ├── cluck.test.js  parser sanity checks
-    └── saves.test.js  storage roundtrips, validation, resilience
+    ├── cluck.test.js         parser sanity checks
+    ├── saves.test.js         storage roundtrips, validation, resilience
+    ├── levels.test.js        geometry, level table, every level winnable
+    ├── quest.test.js         progress + drafts
+    └── coop.headless.test.js the renderer, played in headless Chrome
 ```
+
+### Quest
+
+- [ ] 🥚 Quest opens the level list; each row shows its earned stars
+- [ ] Picking a level draws the yard: fences, eggs, basket, foxes
+- [ ] The editor swaps to that level's starter; free-draw code is untouched
+- [ ] `fd 700` solves First Steps and the status bar shows ★★★
+- [ ] Walking into a fence stops the animal *at* it with a thud — not through it
+- [ ] Run again after a bump restarts the level cleanly
+- [ ] Walking off the edge bumps the border; the animal never leaves the yard
+- [ ] Touching a fox ends the run with the caught message and a falling tone
+- [ ] Passing over an egg collects it, plays a cluck, and bumps the HUD counter
+- [ ] Collected eggs stay on screen as a faint ghost
+- [ ] Solving Round and Round with `repeat` earns three stars; the eight-line
+      version earns two
+- [ ] Stars persist across a reload and show in the level list
+- [ ] A basket on the start square (Round and Round, The Whole Farm) shows a
+      dashed ring and is not won until you have left it — including after `home`
+- [ ] `clear` inside a level wipes the pen trail but not the fences
+- [ ] Resize mid-level: the yard stays proportional and nothing drifts
+- [ ] Reset reloads the level; Stop interrupts cleanly
+- [ ] ← Free Draw returns to free drawing with the previous code intact
+- [ ] Every emoji renders as a real glyph — including 🧺 on the kids' machines

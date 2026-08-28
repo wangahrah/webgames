@@ -10,7 +10,7 @@ vm.createContext(ctx);
 for (const f of ['js/ops.js', 'js/cluck.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx);
 }
-const { compileCluck, resolveVerb, suggestVerb, formatCluck } = ctx;
+const { compileCluck, cluckStatementCount, resolveVerb, suggestVerb, formatCluck } = ctx;
 // `const ANIMALS` / `const OPS` are lexical bindings, so they never appear as
 // properties of `ctx` the way the function declarations do.
 const ANIMALS = vm.runInContext('ANIMALS', ctx);
@@ -332,6 +332,36 @@ test('every animal in the table is a usable verb argument', () => {
     const q = compileCluck(`be ${name}`);
     eq(q[0].arg, name);
   }
+});
+
+console.log('\nstatement counting (quest par)');
+
+test('a flat program counts its lines', () => {
+  eq(cluckStatementCount('fd 100\nrt 90\nfd 100\n'), 3);
+});
+
+test('a repeat counts as itself plus its body, not the unrolled queue', () => {
+  // The same square: 8 ops when compiled, 3 statements as written.
+  eq(compileCluck('repeat 4 [ fd 100 rt 90 ]').length, 8);
+  eq(cluckStatementCount('repeat 4 [ fd 100 rt 90 ]'), 3);
+});
+
+test('the flat version of a square costs more than the loop', () => {
+  const flat = 'fd 100\nrt 90\n'.repeat(4);
+  eq(cluckStatementCount(flat), 8);
+});
+
+test('nested repeats count at every level', () => {
+  eq(cluckStatementCount('repeat 2 [ repeat 3 [ fd 10 ] rt 90 ]'), 4);
+});
+
+test('comments and blank lines are free', () => {
+  eq(cluckStatementCount('# hello\n\nfd 10 # go\n'), 1);
+});
+
+test('an empty program counts zero', () => {
+  eq(cluckStatementCount(''), 0);
+  eq(cluckStatementCount('# just a note\n'), 0);
 });
 
 console.log('\nexamples programs');
