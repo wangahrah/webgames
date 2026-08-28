@@ -8,6 +8,16 @@ open `index.html` in a browser, no build, no server.
 - **Cluck** (live): Logo-flavored commands, one per line. Verbs come from
   `js/ops.js`; the cheat sheet in the editor pane is generated from that
   table so adding a verb auto-documents itself.
+
+You are not stuck being a chicken. `js/ops.js` also holds `ANIMALS`, the
+name→emoji cast list, which drives three things at once: the `be <animal>`
+verb, the 🐾 Animal picker, and the sprite the Coop draws. Add a row there and
+all three pick it up. Only use glyphs at Emoji 12 or older — the kids' machines
+render anything newer as a tofu box.
+
+The picker is a *setting* (stored under `chicken.animal`), not part of your
+script, so loading someone else's program does not change who you are. `be`
+inside a program overrides it until the next Reset.
 - **Python** (planned, phase 3): Skulpt-powered real Python with a `chicken`
   module exposing the same verbs.
 
@@ -47,7 +57,8 @@ After UI changes, open `index.html` and confirm:
 - [ ] Ctrl+Enter runs from the editor
 - [ ] Reload preserves edited code (localStorage)
 - [ ] Typo error shows line number + "did you mean…"
-- [ ] `color red` / `color blue` / etc. tints subsequent trail
+- [ ] `color red` / `color blue` / `color pink` / `color teal` tints
+      subsequent trail
 - [ ] `color rainbow` cycles hue per segment
 - [ ] `speed slow` / `speed fast` visibly changes pace
 - [ ] `lay` drops a 🥚 at the chicken's current spot
@@ -56,8 +67,22 @@ After UI changes, open `index.html` and confirm:
 - [ ] `color rd` shows "did you mean 'red'?" hint
 - [ ] `say "hello"` shows a speech bubble above the chicken
 - [ ] `say "broken` (unclosed) errors with line number
-- [ ] Each Examples button (Square / Star / Flower / Rainbow) loads
+- [ ] Each Examples button (Square / Star / Flower / Rainbow / Zoo) loads
       a program that runs cleanly
+
+### Animals
+
+- [ ] 🐾 Animal opens a 5-wide grid; the current animal is highlighted
+- [ ] Clicking one changes the sprite immediately (no Run needed) and
+      relabels the button with that emoji
+- [ ] Choice survives a reload
+- [ ] `be unicorn` mid-program switches the sprite; Reset restores the
+      animal chosen in the picker
+- [ ] `be unicron` shows "did you mean 'unicorn'?"
+- [ ] Every animal renders as a real glyph, not a tofu box (check on the
+      kids' machines, not just here)
+- [ ] The animal faces the direction it walks and is never upside down —
+      east, south, west, and north all look right
 
 ### Saving scripts
 
@@ -89,7 +114,7 @@ chicken/
 ├── index.html         page shell
 ├── style.css          two-pane layout, sticky-note cheat sheet
 ├── js/
-│   ├── ops.js         verb table (single source of truth)
+│   ├── ops.js         verb + animal tables (single source of truth)
 │   ├── cluck.js       Cluck-speak parser → command queue
 │   ├── coop.js        canvas renderer, chicken sprite, compass, playback
 │   ├── saves.js       named-script storage (localStorage)

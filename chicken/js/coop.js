@@ -17,15 +17,24 @@ const Coop = (function () {
 
   const HOME = { x: W / 2, y: H / 2, heading: 0 };
   const DEFAULT_COLOR = '#222';
+  // The sprite's state. Still called `chicken` — that's the game's name, even
+  // when it is currently being a unicorn.
   const chicken = {
     x: HOME.x, y: HOME.y, heading: HOME.heading,
     penDown: true, color: DEFAULT_COLOR,
     colorMode: 'fixed', hue: 0,
     bubble: null,
+    animal: DEFAULT_ANIMAL,
   };
+
+  // The animal the picker chose: what `reset` returns to. `be` changes the
+  // current animal mid-program without disturbing this.
+  let defaultAnimal = DEFAULT_ANIMAL;
 
   const COLOR_MAP = {
     red:    '#e53935',
+    pink:   '#ec407a',
+    teal:   '#00897b',
     blue:   '#1e88e5',
     green:  '#43a047',
     yellow: '#fdd835',
@@ -83,6 +92,7 @@ const Coop = (function () {
     chicken.color = DEFAULT_COLOR;
     chicken.colorMode = 'fixed'; chicken.hue = 0;
     chicken.bubble = null;
+    chicken.animal = defaultAnimal;
     speed.msPerUnit = BASE_SPEED.msPerUnit;
     speed.msPerDeg = BASE_SPEED.msPerDeg;
     tctx.clearRect(0, 0, W, H);
@@ -115,14 +125,22 @@ const Coop = (function () {
     return c;
   }
 
-  function drawChicken(x, y, heading) {
+  // Emoji animals are drawn facing WEST. To point one at `heading` we rotate,
+  // but rolling all the way round leaves it upside down on the western half —
+  // so past 90° we mirror instead. The animal always faces where it walks and
+  // is never upside down.
+  function drawAnimal(x, y, heading) {
+    const glyph = ANIMALS[chicken.animal] || ANIMALS[DEFAULT_ANIMAL];
+    const a = ((heading % 360) + 360) % 360;
+    const facingWest = a > 90 && a < 270;
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(heading * Math.PI / 180);
+    ctx.rotate((facingWest ? a - 180 : a) * Math.PI / 180);
+    if (!facingWest) ctx.scale(-1, 1);
     ctx.font = '36px system-ui, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🐔', 0, 0);
+    ctx.fillText(glyph, 0, 0);
     ctx.restore();
   }
 
@@ -260,7 +278,7 @@ const Coop = (function () {
   function render() {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(trail, 0, 0);
-    drawChicken(chicken.x, chicken.y, chicken.heading);
+    drawAnimal(chicken.x, chicken.y, chicken.heading);
     drawCompass(chicken.heading);
     if (chicken.bubble) drawBubble(chicken.bubble, chicken.x, chicken.y);
   }
@@ -323,6 +341,9 @@ const Coop = (function () {
         speed.msPerDeg = BASE_SPEED.msPerDeg * s.mult;
         break;
       }
+      case 'be':
+        if (ANIMALS[op.arg]) chicken.animal = op.arg;
+        break;
       case 'lay':   stampEgg(chicken.x, chicken.y); break;
       case 'cluck': playCluck(); break;
     }
@@ -439,5 +460,15 @@ const Coop = (function () {
 
   render();
 
-  return { play, stop, reset, render, isRunning };
+  // The picker sets the animal the coop starts (and resets) as. Applied live
+  // too, so clicking one is instantly visible without pressing Run.
+  function setDefaultAnimal(name) {
+    if (!ANIMALS[name]) return;
+    defaultAnimal = name;
+    chicken.animal = name;
+    render();
+  }
+  function getDefaultAnimal() { return defaultAnimal; }
+
+  return { play, stop, reset, render, isRunning, setDefaultAnimal, getDefaultAnimal };
 })();

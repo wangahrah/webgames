@@ -45,6 +45,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border-bottom: 1px solid #ddd;
   font-size: 0.85rem;
   position: relative;
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
 }
 .examples-label {
   color: #888;
@@ -77,7 +79,8 @@ button.example:hover:not(:disabled) {
   min-width: 16rem;
   z-index: 10;
 }
-#save-popover, #dirty-confirm, #scripts-panel { left: 1rem; }
+#save-popover, #dirty-confirm, #scripts-panel, #animal-panel { left: 1rem; }
+#animal-panel { max-width: 26rem; }
 #scripts-panel { max-width: 22rem; }
 
 .popover-label {
@@ -134,6 +137,34 @@ button.example:hover:not(:disabled) {
   color: #888;
   font-size: 0.8rem;
   font-style: italic;
+}
+
+/* Animal picker: a grid of emoji you can click to become. */
+.animal-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.3rem;
+}
+.animal-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.15rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f5f5f5;
+  cursor: pointer;
+}
+.animal-choice:hover { background: #ffd54f; border-color: #f9a825; }
+.animal-choice.current { background: #fff3c4; border-color: #f9a825; }
+.animal-glyph { font-size: 1.6rem; line-height: 1.1; }
+.animal-name {
+  font-size: 0.6rem;
+  color: #666;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scripts-list {

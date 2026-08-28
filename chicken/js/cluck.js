@@ -165,11 +165,13 @@ function parseStatement(stream) {
   } else if (def.arg === 'word') {
     const w = parseWord(stream);
     if (w === null) {
-      throw new CluckError(`'${verb}' needs a word after it (try: ${def.values.join(', ')})`, tok.line);
+      const opts = def.valuesHint || def.values.join(', ');
+      throw new CluckError(`'${verb}' needs a word after it (try: ${opts})`, tok.line);
     }
     if (def.values && !def.values.includes(w.value)) {
       const hint = nearestFromList(w.value, def.values);
-      const tail = hint ? ` did you mean '${hint}'?` : ` try one of: ${def.values.join(', ')}`;
+      const opts = def.valuesHint || def.values.join(', ');
+      const tail = hint ? ` did you mean '${hint}'?` : ` try one of: ${opts}`;
       throw new CluckError(`'${verb}' doesn't know '${w.value}'.${tail}`, w.line);
     }
     arg = w.value;

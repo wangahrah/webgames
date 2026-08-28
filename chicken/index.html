@@ -26,8 +26,17 @@
     <button class="example" data-example="star">Star</button>
     <button class="example" data-example="flower">Flower</button>
     <button class="example" data-example="rainbow">Rainbow</button>
+    <button class="example" data-example="zoo">Zoo</button>
+    <button id="animal-btn" class="example" aria-haspopup="true" aria-expanded="false"
+            title="Choose your animal">🐾 Animal ▾</button>
     <button id="save-script" class="example" title="Ctrl+S">💾 Save</button>
     <button id="my-scripts" class="example" aria-haspopup="true" aria-expanded="false">📂 My Scripts ▾</button>
+
+    <div id="animal-panel" class="popover" hidden>
+      <div class="popover-label">who do you want to be?</div>
+      <div id="animal-grid" class="animal-grid"></div>
+      <div class="popover-hint">tip: you can also write <code>be unicorn</code> in your program</div>
+    </div>
 
     <div id="save-popover" class="popover" hidden>
       <label class="popover-label" for="save-name">name your script:</label>

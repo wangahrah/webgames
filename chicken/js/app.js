@@ -59,6 +59,31 @@ const EXAMPLES = {
     'peck\n' +
     'cluck\n' +
     'say "tada!"\n',
+  zoo:
+    'say "welcome to the zoo!"\n' +
+    'speed fast\n' +
+    'color rainbow\n' +
+    'be unicorn\n' +
+    'repeat 3 [\n' +
+    '  fd 80\n' +
+    '  rt 120\n' +
+    ']\n' +
+    'be raccoon\n' +
+    'say "sneaky!"\n' +
+    'repeat 4 [\n' +
+    '  fd 60\n' +
+    '  rt 90\n' +
+    ']\n' +
+    'be dragon\n' +
+    'say "rawr"\n' +
+    'cluck\n' +
+    'repeat 6 [\n' +
+    '  fd 70\n' +
+    '  rt 60\n' +
+    ']\n' +
+    'be chicken\n' +
+    'lay\n' +
+    'say "home again"\n',
 };
 
 codeEl.value = localStorage.getItem('chicken.cluck') || STARTER;
@@ -204,6 +229,61 @@ codeEl.addEventListener('keydown', (e) => {
   }
 });
 
+// ---- Animal picker ----------------------------------------------------------
+// Which animal you *are* is a setting, not part of your script — it lives in
+// its own localStorage key so it survives loading someone else's program.
+
+const ANIMAL_KEY = 'chicken.animal';
+const animalBtn = document.getElementById('animal-btn');
+const animalPanel = document.getElementById('animal-panel');
+const animalGrid = document.getElementById('animal-grid');
+
+function setAnimal(name) {
+  if (!ANIMALS[name]) name = DEFAULT_ANIMAL;
+  Coop.setDefaultAnimal(name);
+  localStorage.setItem(ANIMAL_KEY, name);
+  animalBtn.textContent = `${ANIMALS[name]} Animal ▾`;
+  animalBtn.title = `you are a ${name} — click to change`;
+  markCurrentAnimal(name);
+}
+
+function markCurrentAnimal(name) {
+  animalGrid.querySelectorAll('.animal-choice').forEach(b => {
+    b.classList.toggle('current', b.dataset.animal === name);
+  });
+}
+
+function buildAnimalGrid() {
+  animalGrid.innerHTML = '';
+  for (const [name, glyph] of Object.entries(ANIMALS)) {
+    const b = document.createElement('button');
+    b.className = 'animal-choice';
+    b.dataset.animal = name;
+    b.title = name;
+    b.innerHTML = `<span class="animal-glyph">${glyph}</span><span class="animal-name">${name}</span>`;
+    b.addEventListener('click', () => {
+      setAnimal(name);
+      setStatus(`you are a ${name}!`);
+      closeAllPopovers();
+    });
+    animalGrid.appendChild(b);
+  }
+}
+
+buildAnimalGrid();
+setAnimal(localStorage.getItem(ANIMAL_KEY) || DEFAULT_ANIMAL);
+
+animalBtn.addEventListener('click', () => {
+  if (!animalPanel.hidden) {
+    closeAllPopovers();
+  } else {
+    closeAllPopovers();
+    markCurrentAnimal(Coop.getDefaultAnimal());
+    animalPanel.hidden = false;
+    animalBtn.setAttribute('aria-expanded', 'true');
+  }
+});
+
 // ---- Save / Load / Delete ---------------------------------------------------
 
 const saveBtn = document.getElementById('save-script');
@@ -231,6 +311,8 @@ function isDirty() {
 }
 
 function closeAllPopovers() {
+  animalPanel.hidden = true;
+  animalBtn.setAttribute('aria-expanded', 'false');
   savePopover.hidden = true;
   scriptsPanel.hidden = true;
   dirtyConfirm.hidden = true;
@@ -465,7 +547,8 @@ document.addEventListener('click', (e) => {
 // Escape closes popovers
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && (
-    !savePopover.hidden || !scriptsPanel.hidden || !dirtyConfirm.hidden
+    !savePopover.hidden || !scriptsPanel.hidden || !dirtyConfirm.hidden ||
+    !animalPanel.hidden
   )) {
     e.preventDefault();
     cancelEverything();

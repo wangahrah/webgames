@@ -11,6 +11,9 @@ for (const f of ['js/ops.js', 'js/cluck.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx);
 }
 const { compileCluck, resolveVerb, suggestVerb, formatCluck } = ctx;
+// `const ANIMALS` / `const OPS` are lexical bindings, so they never appear as
+// properties of `ctx` the way the function declarations do.
+const ANIMALS = vm.runInContext('ANIMALS', ctx);
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -288,53 +291,63 @@ test('formatter preserves brackets inside string', () => {
   eq(out, 'say "[stay]"\n');
 });
 
+test('new colors pink and teal are accepted', () => {
+  const q = compileCluck('color pink\ncolor teal');
+  eq(q.map(o => o.arg), ['pink', 'teal']);
+});
+
+test("'be' turns into a known animal", () => {
+  const q = compileCluck('be unicorn\nbe raccoon');
+  eq(q.map(o => o.op), ['be', 'be']);
+  eq(q.map(o => o.arg), ['unicorn', 'raccoon']);
+});
+
+test("'be' is case-insensitive", () => {
+  eq(compileCluck('BE Unicorn')[0].arg, 'unicorn');
+});
+
+test("'be' with an unknown animal suggests a near miss", () => {
+  const e = throws(() => compileCluck('be unicron'), "did you mean 'unicorn'?");
+  eq(e.line, 1);
+});
+
+test("'be' with no animal at all explains itself", () => {
+  throws(() => compileCluck('be'), "needs a word after it");
+});
+
+test("'be' with a far-off word falls back to the short hint, not 20 names", () => {
+  const e = throws(() => compileCluck('be xylophone'), 'try one of:');
+  if (e.message.length > 120) {
+    throw new Error(`hint too long for the status bar: ${e.message}`);
+  }
+});
+
+test("'be unicorn' survives a tidy pass", () => {
+  eq(formatCluck('repeat 2 [ be unicorn fd 10 ]'),
+     'repeat 2 [\n  be unicorn\n  fd 10\n]\n');
+});
+
+test('every animal in the table is a usable verb argument', () => {
+  for (const name of Object.keys(ANIMALS)) {
+    const q = compileCluck(`be ${name}`);
+    eq(q[0].arg, name);
+  }
+});
+
 console.log('\nexamples programs');
 
-const EXAMPLE_PROGRAMS = {
-  square:
-    'say "a perfect square!"\n' +
-    'color blue\n' +
-    'repeat 4 [\n' +
-    '  fd 100\n' +
-    '  cluck\n' +
-    '  rt 90\n' +
-    ']\n' +
-    'lay\n',
-  star:
-    'color yellow\n' +
-    'speed fast\n' +
-    'say "stars!"\n' +
-    'repeat 5 [\n' +
-    '  fd 120\n' +
-    '  lay\n' +
-    '  cluck\n' +
-    '  rt 144\n' +
-    ']\n',
-  flower:
-    'color rainbow\n' +
-    'speed fast\n' +
-    'say "watch me bloom!"\n' +
-    'repeat 8 [\n' +
-    '  repeat 4 [\n' +
-    '    fd 60\n' +
-    '    rt 90\n' +
-    '  ]\n' +
-    '  cluck\n' +
-    '  rt 45\n' +
-    ']\n',
-  rainbow:
-    'say "rainbow time!"\n' +
-    'speed fast\n' +
-    'color rainbow\n' +
-    'repeat 12 [\n' +
-    '  fd 50\n' +
-    '  rt 30\n' +
-    ']\n' +
-    'home\n' +
-    'peck\n' +
-    'cluck\n' +
-    'say "tada!"\n',
-};
+// Pulled straight out of js/app.js rather than copied, so a new Examples
+// button is covered the moment it exists. app.js touches the DOM at load, so
+// we lift just the object literal and evaluate that.
+const appSrc = fs.readFileSync(path.join(__dirname, '..', 'js/app.js'), 'utf8');
+const exStart = appSrc.indexOf('const EXAMPLES = {');
+const exEnd = appSrc.indexOf('\n};\n', exStart);
+if (exStart === -1 || exEnd === -1) {
+  throw new Error('could not find the EXAMPLES literal in js/app.js');
+}
+const EXAMPLE_PROGRAMS = vm.runInNewContext(
+  '(' + appSrc.slice(exStart + 'const EXAMPLES = '.length, exEnd + 2) + ')'
+);
 
 for (const [name, program] of Object.entries(EXAMPLE_PROGRAMS)) {
   test(`example "${name}" compiles cleanly`, () => {

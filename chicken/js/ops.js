@@ -2,6 +2,34 @@
 // Adding a new verb: add it here, handle it in coop.js (the renderer),
 // and (in phase 3) expose it in the Python module.
 
+// The cast. Name → emoji. Drives the `be` verb, the 🐾 Animal picker, and the
+// sprite the Coop draws. Every glyph here is checked present in Noto Color
+// Emoji (Emoji 12 or older) so nothing renders as a tofu box on the kids' PCs.
+const ANIMALS = {
+  chicken:  '🐔',
+  raccoon:  '🦝',
+  unicorn:  '🦄',
+  dragon:   '🐉',
+  turtle:   '🐢',
+  dinosaur: '🦖',
+  fox:      '🦊',
+  frog:     '🐸',
+  penguin:  '🐧',
+  octopus:  '🐙',
+  bee:      '🐝',
+  snail:    '🐌',
+  crab:     '🦀',
+  sloth:    '🦥',
+  panda:    '🐼',
+  hedgehog: '🦔',
+  pig:      '🐷',
+  ghost:    '👻',
+  robot:    '🤖',
+  alien:    '👽',
+};
+
+const DEFAULT_ANIMAL = 'chicken';
+
 const OPS = {
   forward: { aliases: ['fd'], arg: 'number', defaultArg: 10, desc: 'walk forward N steps' },
   back:    { aliases: ['bk'], arg: 'number', defaultArg: 10, desc: 'walk back N steps' },
@@ -12,7 +40,8 @@ const OPS = {
   home:    { aliases: [],     arg: 'none',                   desc: 'back to the center' },
   clear:   { aliases: ['cs'], arg: 'none',                   desc: 'wipe the canvas' },
   color:   { aliases: [],     arg: 'word',
-             values: ['red','blue','green','yellow','orange','purple','black','white','rainbow'],
+             values: ['red','pink','orange','yellow','green','teal','blue','purple',
+                      'black','white','rainbow'],
              desc:   'pen color (try rainbow!)' },
   speed:   { aliases: [],     arg: 'word',
              values: ['slow','medium','fast'],
@@ -21,6 +50,10 @@ const OPS = {
   peck:    { aliases: [],     arg: 'none',                   desc: 'peck the ground' },
   cluck:   { aliases: [],     arg: 'none',                   desc: 'make a chicken noise' },
   say:     { aliases: [],     arg: 'text',                   desc: 'say something out loud' },
+  be:      { aliases: [],     arg: 'word',
+             values: Object.keys(ANIMALS),
+             valuesHint: 'unicorn, raccoon, dragon…  (see the 🐾 Animal button)',
+             desc:   'turn into another animal!' },
 };
 
 // Extra non-verb syntax shown on the cheat sheet
