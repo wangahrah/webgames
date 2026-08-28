@@ -27,6 +27,12 @@ Both modes compile to the same intermediate **command queue**. The Coop
 (`js/coop.js`) plays it back animated, so the same renderer drives any
 front-end.
 
+The canvas has no fixed shape. `coop.js` keeps the backing store matched to
+whatever size the layout gives the element (times the device pixel ratio, with
+a base transform so all the drawing code still thinks in CSS pixels). Never
+give `#canvas` an intrinsic size in CSS — that is what makes the browser
+stretch one rectangle into another and turn the compass into an oval.
+
 ```
   Cluck text  ──┐
                 ├── [ {op, arg}, ... ] ── Coop renderer ── canvas
@@ -52,6 +58,10 @@ After UI changes, open `index.html` and confirm:
 - [ ] `clear` wipes the trail; chicken stays put (per design)
 - [ ] `home` returns chicken to center facing east
 - [ ] Compass needle tracks heading in real time
+- [ ] Compass is a *circle*, not an oval, at any window shape — drag the
+      window wide, then tall, and check it again
+- [ ] Resizing mid-drawing keeps the artwork centred under the animal
+- [ ] `home` returns to the centre of the *current* canvas after a resize
 - [ ] Cheat sheet shows all verbs from `OPS`
 - [ ] Stop button interrupts mid-run cleanly
 - [ ] Ctrl+Enter runs from the editor

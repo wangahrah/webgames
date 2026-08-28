@@ -323,6 +323,14 @@ main {
   min-width: 0;
   min-height: 0;
 }
+/* Fill the pane, whatever shape it is. This used to also carry
+   `aspect-ratio: 1/1` and `max-height: 100%`, which fought each other: the
+   aspect-ratio wanted height == width, max-height clamped the height back
+   down, and `width: 100%` is a definite size so it never shrank to match.
+   The element ended up oblong while the backing store stayed 600x600, and the
+   browser stretched one into the other -- which is what made the compass an
+   oval. The canvas now has no intrinsic shape; coop.js keeps the backing
+   store matched to whatever size this rule produces. */
 #canvas {
   background: #fffdf5;
   border: 3px solid #8b6f47;
@@ -330,10 +338,7 @@ main {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   display: block;
   width: 100%;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
 }
 
 footer {

@@ -9,12 +9,19 @@
 const Coop = (function () {
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
 
-  const trail = document.createElement('canvas');
+  // W and H are CSS pixels — the coordinate system every command works in.
+  // The backing store underneath is W*dpr by H*dpr, hidden by a base
+  // transform, so nothing below this block has to think in device pixels.
+  // Both track the element's real size (see fitNow), rather than being fixed
+  // and stretched to fit.
+  let W = canvas.width, H = canvas.height;
+
+  let trail = document.createElement('canvas');
   trail.width = W; trail.height = H;
-  const tctx = trail.getContext('2d');
+  let tctx = trail.getContext('2d');
 
+  // Recentred on every resize.
   const HOME = { x: W / 2, y: H / 2, heading: 0 };
   const DEFAULT_COLOR = '#222';
   // The sprite's state. Still called `chicken` — that's the game's name, even
@@ -100,6 +107,71 @@ const Coop = (function () {
   }
 
   function clearTrail() { tctx.clearRect(0, 0, W, H); }
+
+  // ---- keeping the surfaces matched to the element -------------------------
+
+  function currentDpr() {
+    return Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  }
+
+  // Point a context at CSS pixels whatever the device pixel ratio, so one
+  // unit of `forward` is one CSS pixel on every display and the drawing is
+  // sharp on a hidpi one.
+  function useCssPixels(context, dpr) {
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  let sized = false;
+
+  // Resize both surfaces to w x h CSS pixels, carrying the existing drawing
+  // across. The artwork stays centred: it is copied in at half the delta and
+  // the animal (plus any move in flight) shifts by the same amount, so
+  // resizing the window never tears a drawing away from the animal that made
+  // it.
+  function resizeSurfaces(w, h) {
+    const dpr = currentDpr();
+    const oldTrail = trail, oldW = W, oldH = H;
+    const dx = Math.round((w - oldW) / 2);
+    const dy = Math.round((h - oldH) / 2);
+
+    const next = document.createElement('canvas');
+    next.width = Math.round(w * dpr);
+    next.height = Math.round(h * dpr);
+    const nctx = next.getContext('2d');
+    useCssPixels(nctx, dpr);
+    if (sized) nctx.drawImage(oldTrail, dx, dy, oldW, oldH);
+    trail = next;
+    tctx = nctx;
+
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    useCssPixels(ctx, dpr);
+
+    W = w; H = h;
+    HOME.x = W / 2; HOME.y = H / 2;
+    chicken.x += dx; chicken.y += dy;
+    if (opFrom) { opFrom.x += dx; opFrom.y += dy; }
+    sized = true;
+    render();
+  }
+
+  let lastDpr = 0; // 0 so the first fit always runs
+  function fitNow() {
+    // clientWidth/Height are the content box — the border is excluded, which
+    // getBoundingClientRect would have included and skewed by a few pixels.
+    const w = Math.max(1, canvas.clientWidth || W);
+    const h = Math.max(1, canvas.clientHeight || H);
+    const dpr = currentDpr();
+    if (w === W && h === H && dpr === lastDpr) return;
+    lastDpr = dpr;
+    resizeSurfaces(w, h);
+  }
+
+  let pendingFit = null;
+  function scheduleFit() {
+    if (pendingFit !== null) return;
+    pendingFit = requestAnimationFrame(() => { pendingFit = null; fitNow(); });
+  }
 
   function stampEgg(x, y) {
     tctx.save();
@@ -277,7 +349,9 @@ const Coop = (function () {
 
   function render() {
     ctx.clearRect(0, 0, W, H);
-    ctx.drawImage(trail, 0, 0);
+    // Explicit destination size: the trail's backing store is in device
+    // pixels, and we are drawing under a CSS-pixel transform.
+    ctx.drawImage(trail, 0, 0, W, H);
     drawAnimal(chicken.x, chicken.y, chicken.heading);
     drawCompass(chicken.heading);
     if (chicken.bubble) drawBubble(chicken.bubble, chicken.x, chicken.y);
@@ -458,7 +532,15 @@ const Coop = (function () {
 
   function isRunning() { return running; }
 
-  render();
+  fitNow();
+
+  // The pane changes size for reasons other than the window moving (the
+  // editor pane is a percentage of it), so watch the element itself rather
+  // than only listening for window resizes.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(scheduleFit).observe(canvas);
+  }
+  window.addEventListener('resize', scheduleFit);
 
   // The picker sets the animal the coop starts (and resets) as. Applied live
   // too, so clicking one is instantly visible without pressing Run.
