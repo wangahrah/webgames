@@ -12,8 +12,8 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 - **Appearance**: A small, round, glowing fireball with a cute face (eyes). Leaves a faint ember trail as it rolls.
 - **Movement**: Rolls left/right with arrow keys (or A/D). Jumps with Up arrow (or W). The ball has a slight rolling animation (rotation).
 - **Lives**: The player starts with **3 lives** (displayed as flame icons in the HUD).
-- **Shield**: Holding **Spacebar** raises a shield bubble around the fireball. It blocks lasers and monster beams, lasts ~1 second, then needs ~2 seconds before it can be raised again — holding the key just cycles it. It is deliberately *not* a state you can live in. The HUD dot shows all three states: a bright ring when ready, a filled dial draining while it is up, a dark dial refilling while it recharges.
-- **What the shield does not stop**: falling hammers. A hammer smashes straight through a raised shield, knocks it out, and puts it on cooldown.
+- **Shield**: Holding **Spacebar** raises a shield bubble around the fireball. **It has no timer.** Hold the key and it stays up for as long as you like — lasers and monsters cannot hurt you through it and cannot take it down.
+- **The one exception is a falling hammer.** A hammer smashes straight through a raised shield, and knocks the shield out for **3 seconds**. That lockout is the shield's only recharge; there is no other. The HUD dot shows it: solid blue while up, a red dial refilling during the 3 seconds, a bright ring when ready.
 
 ## Course / Level
 - The level scrolls horizontally from left to right.
@@ -91,12 +91,12 @@ player back, the same as a falling hammer does.
 | Arrow Left / A | Roll left |
 | Arrow Right / D | Roll right |
 | Arrow Up / W | Jump |
-| Spacebar | Hold for shield (~1s up, ~2s cooldown; blocks lasers, NOT hammers) |
+| Spacebar | Hold for shield — no timer; blocks everything except hammers |
 | Mouse Click | Click a monster to destroy it (armored ones take three) |
 
 ## HUD (Heads-Up Display)
 - **Lives**: 3 flame icons (top-left). One extinguishes per life lost.
-- **Shield cooldown**: Circular dial under the lives, top-left. Bright ring = ready, filled and draining = up, dark and refilling = recharging.
+- **Shield state**: Circular dial under the lives, top-left. Bright ring = ready, solid blue = up, red dial refilling = the 3 seconds after a hammer.
 
 ## Game States
 1. **Title Screen**: "BOUNCEBACK" in fiery text, "Click to Start" prompt.
@@ -114,5 +114,5 @@ player back, the same as a falling hammer does.
 ## Design Principles (for implementation)
 - **Keep it simple**: Straightforward platformer physics (gravity, ground collision, basic AABB hitboxes).
 - **Kid-friendly**: Forgiving hit detection, generous shield window, clear visual telegraphs for all hazards.
-- **Fun over difficulty**: The game should feel beatable in a few tries. Monsters die in one click (armored ones in three). The shield recharges quickly. Hammers are the deliberate exception — they cost a life and ignore the shield, so hammer zones are the real test.
+- **Fun over difficulty**: The game should feel beatable in a few tries. Monsters die in one click (armored ones in three). The shield is generous on purpose — it never runs out on its own. Hammers are the deliberate exception: they cost a life, ignore the shield and take it away for three seconds, so hammer zones are the real test and everything else is a playground.
 - **Visually clear**: High contrast between player, hazards, and background. Big, readable shapes.
