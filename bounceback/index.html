@@ -623,9 +623,22 @@ var LEVELS = {
       { x: 7400, yOff: -80,  width: 8, height: 80,  onDuration: 45, offDuration: 110 }
     ],
     monsterPlacements: [
-      { x: 2400, yOff: -30, patrolLeft: 2300, patrolRight: 2500 },
-      { x: 5100, yOff: -30, patrolLeft: 5000, patrolRight: 5200 },
-      { x: 6600, yOff: -30, patrolLeft: 6500, patrolRight: 6700 }
+      { x: 700,  yOff: -30,  type: 'splitter', patrolLeft: 620,  patrolRight: 830 },
+      { x: 1400, yOff: -185, type: 'floater',  patrolLeft: 1280, patrolRight: 1620 },
+      { x: 1900, yOff: -30,  type: 'bomber',   patrolLeft: 1860, patrolRight: 1940 },
+      { x: 1995, yOff: -30,  type: 'bomber',   patrolLeft: 1960, patrolRight: 2035 },
+      { x: 2090, yOff: -30,  type: 'bomber',   patrolLeft: 2055, patrolRight: 2130 },
+      { x: 2400, yOff: -30,  type: 'star',     patrolLeft: 2300, patrolRight: 2500 },
+      { x: 2900, yOff: -30,  type: 'armored',  patrolLeft: 2820, patrolRight: 3060 },
+      { x: 3300, yOff: -205, type: 'floater',  patrolLeft: 3150, patrolRight: 3520 },
+      { x: 4150, yOff: -30,  type: 'splitter', patrolLeft: 4020, patrolRight: 4320 },
+      { x: 5100, yOff: -30,  type: 'star',     patrolLeft: 5000, patrolRight: 5200 },
+      { x: 5400, yOff: -30,  type: 'bomber',   patrolLeft: 5360, patrolRight: 5440 },
+      { x: 5495, yOff: -30,  type: 'bomber',   patrolLeft: 5460, patrolRight: 5535 },
+      { x: 6200, yOff: -30,  type: 'armored',  patrolLeft: 6100, patrolRight: 6360 },
+      { x: 6600, yOff: -30,  type: 'star',     patrolLeft: 6500, patrolRight: 6700 },
+      { x: 6900, yOff: -195, type: 'floater',  patrolLeft: 6780, patrolRight: 7060 },
+      { x: 7400, yOff: -30,  type: 'splitter', patrolLeft: 7300, patrolRight: 7560 }
     ],
     finishLine: { x: 7800 }
   },
@@ -701,10 +714,24 @@ var LEVELS = {
       { x: 7500, yOff: -80,  width: 8, height: 80,  onDuration: 40, offDuration: 100 }
     ],
     monsterPlacements: [
-      { x: 1400, yOff: -30, patrolLeft: 1300, patrolRight: 1500 },
-      { x: 3000, yOff: -30, patrolLeft: 2900, patrolRight: 3100 },
-      { x: 4500, yOff: -30, patrolLeft: 4400, patrolRight: 4600 },
-      { x: 6200, yOff: -30, patrolLeft: 6100, patrolRight: 6300 }
+      { x: 900,  yOff: -30,  type: 'splitter', patrolLeft: 800,  patrolRight: 1080 },
+      { x: 1200, yOff: -190, type: 'floater',  patrolLeft: 1080, patrolRight: 1420 },
+      { x: 1400, yOff: -30,  type: 'star',     patrolLeft: 1300, patrolRight: 1520 },
+      { x: 1800, yOff: -30,  type: 'armored',  patrolLeft: 1720, patrolRight: 1980 },
+      { x: 2400, yOff: -30,  type: 'bomber',   patrolLeft: 2360, patrolRight: 2440 },
+      { x: 2495, yOff: -30,  type: 'bomber',   patrolLeft: 2460, patrolRight: 2535 },
+      { x: 2590, yOff: -30,  type: 'bomber',   patrolLeft: 2555, patrolRight: 2630 },
+      { x: 2685, yOff: -30,  type: 'bomber',   patrolLeft: 2650, patrolRight: 2725 },
+      { x: 3000, yOff: -30,  type: 'star',     patrolLeft: 2900, patrolRight: 3060 },
+      { x: 3400, yOff: -215, type: 'floater',  patrolLeft: 3250, patrolRight: 3620 },
+      { x: 4100, yOff: -30,  type: 'splitter', patrolLeft: 3950, patrolRight: 4300 },
+      { x: 4500, yOff: -30,  type: 'star',     patrolLeft: 4400, patrolRight: 4620 },
+      { x: 5000, yOff: -30,  type: 'armored',  patrolLeft: 4900, patrolRight: 5180 },
+      { x: 5900, yOff: -200, type: 'floater',  patrolLeft: 5750, patrolRight: 6100 },
+      { x: 6200, yOff: -30,  type: 'star',     patrolLeft: 6100, patrolRight: 6320 },
+      { x: 6800, yOff: -30,  type: 'bomber',   patrolLeft: 6760, patrolRight: 6840 },
+      { x: 6895, yOff: -30,  type: 'bomber',   patrolLeft: 6860, patrolRight: 6935 },
+      { x: 7500, yOff: -30,  type: 'splitter', patrolLeft: 7380, patrolRight: 7640 }
     ],
     finishLine: { x: 7800 }
   }
@@ -793,7 +820,7 @@ function loadLevel(levelNum) {
   monsterPlacements = [];
   for (var mp = 0; mp < data.monsterPlacements.length; mp++) {
     var m = data.monsterPlacements[mp];
-    monsterPlacements.push({ x: m.x, y: CONFIG.GROUND_Y + m.yOff, patrolLeft: m.patrolLeft, patrolRight: m.patrolRight });
+    monsterPlacements.push({ x: m.x, y: CONFIG.GROUND_Y + m.yOff, type: m.type || 'star', patrolLeft: m.patrolLeft, patrolRight: m.patrolRight });
   }
 
   finishLine = { x: data.finishLine.x };
@@ -975,22 +1002,68 @@ var monsters = [];
 
 // How long a clicked monster takes to phase out, in frames (~0.75s at 60fps).
 var MONSTER_DEATH_FRAMES = 45;
+// How long a bomber's shockwave lasts, and how far it reaches.
+var BLAST_FRAMES = 28;
+var BLAST_RADIUS = 120;
+// Frames a chained bomber waits before going off, so a cascade reads as a
+// cascade rather than one simultaneous bang.
+var CHAIN_FUSE = 9;
+
+// Every monster is the same object with a different `type`; the type decides
+// how it moves, how it threatens you, and what clicking it does.
+//   star     patrols, fires five radial beams. One click. Beams cost a life.
+//   bomber   lit fuse. One click detonates it, taking out anything nearby --
+//            including other bombers, which is where the chains come from.
+//   splitter bounces around. One click halves it; the halves halve again;
+//            the tinies pop. Seven clicks all told.
+//   armored  wears three plates. Each click cracks one off. Charges at you.
+//   floater  drifts through the air on a sine path. One click, wide pop.
+// Everything except the star's beams only ever knocks the player back, the
+// same as the hammers do -- "fun over difficulty" (see concept.md).
+var MONSTER_SIZES = {
+  star:     { hw: 20, hh: 25 },
+  bomber:   { hw: 22, hh: 22 },
+  armored:  { hw: 26, hh: 24 },
+  floater:  { hw: 21, hh: 21 },
+  splitter: [ { hw: 24, hh: 24 }, { hw: 16, hh: 16 }, { hw: 10, hh: 10 } ]
+};
+
+function monsterSize(type, tier) {
+  if (type === 'splitter') return MONSTER_SIZES.splitter[Math.min(tier || 0, 2)];
+  return MONSTER_SIZES[type] || MONSTER_SIZES.star;
+}
+
+function makeMonster(p) {
+  var type = p.type || 'star';
+  var tier = p.tier || 0;
+  var size = monsterSize(type, tier);
+  var m = {
+    type: type, tier: tier,
+    hw: size.hw, hh: size.hh,
+    x: p.x, y: p.y, baseY: p.y,
+    patrolLeft: p.patrolLeft, patrolRight: p.patrolRight,
+    vx: (p.vx === undefined) ? 1 : p.vx,
+    vy: 0,
+    attackTimer: 0, attacking: false, beamLength: 0,
+    beamPhase: 'idle', beamFrameCounter: 0,
+    walkCycleFrame: Math.random() * 60,
+    // Click one and it phases out: dying runs the animation, dead skips it
+    // entirely. Both reset with the level, so they come back on a retry.
+    dying: false, deathTimer: 0, dead: false,
+    // Bomber: blasting runs the shockwave; armed counts down a chained fuse.
+    blasting: false, blastTimer: 0, armed: false, fuse: 0,
+    armor: (type === 'armored') ? 3 : 0,
+    hitFlash: 0, touchCooldown: 0,
+    chargeTimer: 0, chargeCooldown: 0,
+    bob: Math.random() * Math.PI * 2
+  };
+  return m;
+}
 
 function initMonsters() {
   monsters = [];
   for (var i = 0; i < monsterPlacements.length; i++) {
-    var p = monsterPlacements[i];
-    monsters.push({
-      x: p.x, y: p.y,
-      patrolLeft: p.patrolLeft, patrolRight: p.patrolRight,
-      vx: 1, attackTimer: 0,
-      attacking: false, beamLength: 0,
-      beamPhase: 'idle', beamFrameCounter: 0,
-      walkCycleFrame: 0,
-      // Click one and it phases out: dying runs the animation, dead skips it
-      // entirely. Both reset with the level, so they come back on a retry.
-      dying: false, deathTimer: 0, dead: false
-    });
+    monsters.push(makeMonster(monsterPlacements[i]));
   }
 }
 
@@ -1082,105 +1155,243 @@ function updateLasers(dt) {
 // Clicking a star monster pops it. It stops patrolling, stops shooting and
 // stops being dangerous on the same frame -- the animation that follows is
 // only for show, so a monster mid-phase-out can never still hurt you.
-function killMonster(m) {
-  m.dying = true;
-  m.deathTimer = 0;
-  m.attacking = false;
-  m.beamPhase = 'idle';
-  m.beamLength = 0;
-  m.beamFrameCounter = 0;
-
-  // Burst of sparks from the star on its head, reusing the hammer spark
-  // system so these are updated and drawn for free.
+function monsterSparks(m, cx, cy, count, spread) {
   var lc = getLevelColors();
-  var starCY = m.y - 15 - 10;
-  for (var s = 0; s < 18; s++) {
-    var a = (Math.PI * 2 / 18) * s + (Math.random() - 0.5) * 0.4;
-    var sp = 2 + Math.random() * 4.5;
+  for (var s = 0; s < count; s++) {
+    var a = (Math.PI * 2 / count) * s + (Math.random() - 0.5) * 0.4;
+    var sp = spread * (0.5 + Math.random());
     hammerSparks.push({
-      x: m.x, y: starCY,
-      vx: Math.cos(a) * sp,
-      vy: Math.sin(a) * sp - 1.5,
-      life: 1.0,
-      size: 2 + Math.random() * 3,
+      x: cx, y: cy,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+      life: 1.0, size: 2 + Math.random() * 3,
       color: (s % 2 === 0) ? lc.MONSTER_STAR : lc.MONSTER
     });
   }
 }
 
+function disarmMonster(m) {
+  m.attacking = false;
+  m.beamPhase = 'idle';
+  m.beamLength = 0;
+  m.beamFrameCounter = 0;
+  m.chargeTimer = 0;
+}
+
+// Splitters do not phase out -- they burst, and the halves ARE the effect.
+function splitMonster(m) {
+  monsterSparks(m, m.x, m.y, 12, 3.5);
+  var childTier = m.tier + 1;
+  var size = monsterSize('splitter', childTier);
+  for (var c = 0; c < 2; c++) {
+    var dir = (c === 0) ? -1 : 1;
+    var child = makeMonster({
+      type: 'splitter', tier: childTier,
+      x: m.x + dir * (m.hw * 0.5), y: m.y,
+      patrolLeft: m.patrolLeft - 40, patrolRight: m.patrolRight + 40,
+      vx: dir * (1.6 + childTier * 0.5)
+    });
+    child.vy = -5 - Math.random() * 2;
+    child.hitFlash = 6;
+    monsters.push(child);
+  }
+  m.dead = true;
+}
+
+function explodeMonster(m) {
+  disarmMonster(m);
+  m.armed = false;
+  m.blasting = true;
+  m.blastTimer = 0;
+  m.dying = false;
+
+  screenShake.intensity = 14;
+  screenShake.timer = 22;
+  impactFlash.timer = 14;
+  monsterSparks(m, m.x, m.y, 26, 5.5);
+
+  // Everything nearby goes too. Other bombers get a short fuse instead of
+  // detonating on the same frame, which is what makes a line of them cascade.
+  for (var i = 0; i < monsters.length; i++) {
+    var o = monsters[i];
+    if (o === m || o.dead || o.dying || o.blasting) continue;
+    if (Math.hypot(o.x - m.x, o.y - m.y) > BLAST_RADIUS) continue;
+    if (o.type === 'bomber') {
+      if (!o.armed) { o.armed = true; o.fuse = CHAIN_FUSE; disarmMonster(o); }
+    } else {
+      killMonster(o);
+    }
+  }
+
+  // The blast shoves the player too, so standing on top of one is a bad plan.
+  if (Math.hypot(player.x - m.x, player.y - m.y) < BLAST_RADIUS) {
+    knockbackPlayer((player.x >= m.x) ? 1 : -1);
+  }
+}
+
+// Destroy a monster outright: what a click does once anything protecting it is
+// gone. It stops moving, stops attacking and stops being dangerous on this
+// frame -- whatever plays out afterwards is only for show.
+function killMonster(m) {
+  if (m.dead || m.dying || m.blasting) return;
+  disarmMonster(m);
+  if (m.type === 'bomber') { explodeMonster(m); return; }
+  if (m.type === 'splitter' && m.tier < 2) { splitMonster(m); return; }
+
+  m.dying = true;
+  m.deathTimer = 0;
+  monsterSparks(m, m.x, m.y - m.hh * 0.6, 18, 4.0);
+}
+
+// What a click actually does. Armour soaks the first two.
+function clickMonster(m) {
+  if (m.type === 'armored' && m.armor > 1) {
+    m.armor--;
+    m.hitFlash = 12;
+    m.vx = (player.x >= m.x) ? -1 : 1;
+    m.chargeTimer = 0;
+    m.chargeCooldown = 40;
+    monsterSparks(m, m.x, m.y - m.hh * 0.5, 8, 3.0);
+    screenShake.intensity = 4;
+    screenShake.timer = 6;
+    return;
+  }
+  killMonster(m);
+}
+
+function monsterTouchesPlayer(m) {
+  return Math.abs(player.x - m.x) < m.hw + player.radius &&
+         Math.abs(player.y - m.y) < m.hh + player.radius;
+}
+
 function updateMonsters(dt) {
+  var groundRest = CONFIG.GROUND_Y - 25;
+
   for (var i = 0; i < monsters.length; i++) {
     var m = monsters[i];
     if (m.dead) continue;
-    m.y = CONFIG.GROUND_Y - 15 - 10;
 
+    if (m.blasting) {
+      m.blastTimer += dt;
+      if (m.blastTimer >= BLAST_FRAMES) m.dead = true;
+      continue;
+    }
     if (m.dying) {
       m.deathTimer += dt;
       if (m.deathTimer >= MONSTER_DEATH_FRAMES) m.dead = true;
       continue;
     }
 
-    if (mouseClick !== null) {
-      if (mouseClick.x >= m.x - 20 && mouseClick.x <= m.x + 20 &&
-          mouseClick.y >= m.y - 25 && mouseClick.y <= m.y + 25) {
-        killMonster(m);
-        mouseClick = null;
-        continue;
-      }
+    if (m.touchCooldown > 0) m.touchCooldown -= dt;
+    if (m.hitFlash > 0) m.hitFlash -= dt;
+    if (m.chargeCooldown > 0) m.chargeCooldown -= dt;
+
+    // A chained bomber counts down whether or not you touch it.
+    if (m.armed) {
+      m.fuse -= dt;
+      if (m.fuse <= 0) { explodeMonster(m); continue; }
     }
 
-    if (m.attacking) {
-      m.beamFrameCounter += dt;
-      if (m.beamPhase === 'extend') {
-        m.beamLength += (150 / 30) * dt;
-        if (m.beamFrameCounter >= 30) {
-          m.beamPhase = 'hold'; m.beamFrameCounter = 0; m.beamLength = 150;
-        }
-      } else if (m.beamPhase === 'hold') {
-        m.beamLength = 150;
-        if (m.beamFrameCounter >= 30) {
-          m.beamPhase = 'retract'; m.beamFrameCounter = 0;
-        }
-      } else if (m.beamPhase === 'retract') {
-        m.beamLength -= (150 / 30) * dt;
-        if (m.beamLength < 0) m.beamLength = 0;
-        if (m.beamFrameCounter >= 30) {
-          m.beamPhase = 'idle'; m.beamLength = 0;
-          m.attacking = false; m.attackTimer = 0;
+    if (mouseClick !== null &&
+        Math.abs(mouseClick.x - m.x) <= m.hw + 6 &&
+        Math.abs(mouseClick.y - m.y) <= m.hh + 6) {
+      mouseClick = null;
+      clickMonster(m);
+      if (m.dead || m.dying || m.blasting) continue;
+    }
+
+    // ---- movement, per type -------------------------------------------
+    if (m.type === 'floater') {
+      m.bob += 0.04 * dt;
+      m.x += m.vx * 0.9 * dt;
+      if (m.x >= m.patrolRight) { m.x = m.patrolRight; m.vx = -1; }
+      else if (m.x <= m.patrolLeft) { m.x = m.patrolLeft; m.vx = 1; }
+      m.y = m.baseY + Math.sin(m.bob) * 34;
+
+    } else if (m.type === 'splitter') {
+      m.x += m.vx * dt;
+      if (m.x >= m.patrolRight) { m.x = m.patrolRight; m.vx = -Math.abs(m.vx); }
+      else if (m.x <= m.patrolLeft) { m.x = m.patrolLeft; m.vx = Math.abs(m.vx); }
+      m.vy += CONFIG.GRAVITY * 0.6 * dt;
+      m.y += m.vy * dt;
+      var rest = CONFIG.GROUND_Y - 10 - m.hh;
+      if (m.y >= rest) { m.y = rest; m.vy = -(4.5 + m.tier); }
+
+    } else if (m.type === 'armored') {
+      m.y = groundRest;
+      if (m.chargeTimer > 0) {
+        m.chargeTimer -= dt;
+        m.x += m.vx * 3.4 * dt;
+        if (m.chargeTimer <= 0) m.chargeCooldown = 110;
+      } else {
+        m.x += m.vx * 0.8 * dt;
+        if (m.x >= m.patrolRight) { m.x = m.patrolRight; m.vx = -1; }
+        else if (m.x <= m.patrolLeft) { m.x = m.patrolLeft; m.vx = 1; }
+        if (m.chargeCooldown <= 0 && Math.abs(player.x - m.x) < 260 &&
+            Math.abs(player.y - m.y) < 90) {
+          m.vx = (player.x > m.x) ? 1 : -1;
+          m.chargeTimer = 34;
         }
       }
 
-      if (m.beamLength > 0) {
-        var starCX = m.x;
-        var starCY = m.y - 15 - 10;
-        for (var b = 0; b < 5; b++) {
-          var angle = (b * 72) * (Math.PI / 180);
-          var endX = starCX + Math.cos(angle) * m.beamLength;
-          var endY = starCY + Math.sin(angle) * m.beamLength;
-          var dist = pointToSegmentDist(player.x, player.y, starCX, starCY, endX, endY);
-          if (dist < player.radius) {
-            if (!player.shieldActive && !player.invincible) {
-              hurtPlayer();
-            }
-            break;
+    } else if (m.type === 'bomber') {
+      m.y = groundRest;
+      m.x += m.vx * 0.6 * dt;
+      if (m.x >= m.patrolRight) { m.x = m.patrolRight; m.vx = -1; }
+      else if (m.x <= m.patrolLeft) { m.x = m.patrolLeft; m.vx = 1; }
+
+    } else {
+      // star: patrol, then stop and fire five beams outward
+      m.y = groundRest;
+      if (m.attacking) {
+        m.beamFrameCounter += dt;
+        if (m.beamPhase === 'extend') {
+          m.beamLength += (150 / 30) * dt;
+          if (m.beamFrameCounter >= 30) {
+            m.beamPhase = 'hold'; m.beamFrameCounter = 0; m.beamLength = 150;
+          }
+        } else if (m.beamPhase === 'hold') {
+          m.beamLength = 150;
+          if (m.beamFrameCounter >= 30) { m.beamPhase = 'retract'; m.beamFrameCounter = 0; }
+        } else if (m.beamPhase === 'retract') {
+          m.beamLength -= (150 / 30) * dt;
+          if (m.beamLength < 0) m.beamLength = 0;
+          if (m.beamFrameCounter >= 30) {
+            m.beamPhase = 'idle'; m.beamLength = 0;
+            m.attacking = false; m.attackTimer = 0;
           }
         }
+        if (m.beamLength > 0) {
+          var starCX = m.x;
+          var starCY = m.y - 15 - 10;
+          for (var b = 0; b < 5; b++) {
+            var angle = (b * 72) * (Math.PI / 180);
+            var endX = starCX + Math.cos(angle) * m.beamLength;
+            var endY = starCY + Math.sin(angle) * m.beamLength;
+            if (pointToSegmentDist(player.x, player.y, starCX, starCY, endX, endY) < player.radius) {
+              if (!player.shieldActive && !player.invincible) hurtPlayer();
+              break;
+            }
+          }
+        }
+        m.walkCycleFrame += dt;
+        continue;
       }
-      m.walkCycleFrame += dt;
-      continue;
+      m.x += m.vx * dt;
+      if (m.x >= m.patrolRight) { m.x = m.patrolRight; m.vx = -1; }
+      else if (m.x <= m.patrolLeft) { m.x = m.patrolLeft; m.vx = 1; }
+      m.attackTimer += dt;
+      if (m.attackTimer >= 180) {
+        m.attacking = true; m.beamPhase = 'extend';
+        m.beamFrameCounter = 0; m.beamLength = 0;
+      }
     }
 
-    m.x += m.vx * dt;
-    if (m.x >= m.patrolRight) { m.x = m.patrolRight; m.vx = -1; }
-    else if (m.x <= m.patrolLeft) { m.x = m.patrolLeft; m.vx = 1; }
-
-    m.attackTimer += dt;
-    if (m.attackTimer >= 180) {
-      m.attacking = true;
-      m.beamPhase = 'extend';
-      m.beamFrameCounter = 0;
-      m.beamLength = 0;
+    // ---- the mild threat: bumping into one shoves you, like a hammer ----
+    if (m.type !== 'star' && m.touchCooldown <= 0 && monsterTouchesPlayer(m)) {
+      knockbackPlayer((player.x >= m.x) ? 1 : -1);
+      m.touchCooldown = 45;
     }
+
     m.walkCycleFrame += dt;
   }
 
@@ -1283,22 +1494,75 @@ function drawLasers(renderCtx) {
   }
 }
 
+function drawMonsterFace(renderCtx, cx, cy, spread, r) {
+  renderCtx.fillStyle = '#ffffff';
+  renderCtx.beginPath();
+  renderCtx.arc(cx - spread, cy, r, 0, Math.PI * 2);
+  renderCtx.fill();
+  renderCtx.beginPath();
+  renderCtx.arc(cx + spread, cy, r, 0, Math.PI * 2);
+  renderCtx.fill();
+  renderCtx.fillStyle = '#000000';
+  renderCtx.beginPath();
+  renderCtx.arc(cx - spread + 1, cy, r * 0.5, 0, Math.PI * 2);
+  renderCtx.fill();
+  renderCtx.beginPath();
+  renderCtx.arc(cx + spread + 1, cy, r * 0.5, 0, Math.PI * 2);
+  renderCtx.fill();
+}
+
+function drawMonsterLegs(renderCtx, screenX, m, bodyH, color) {
+  var legWidth = 8, legHeight = 10, legSpacing = 10;
+  var legPhase = Math.floor(m.walkCycleFrame / 15) % 2;
+  renderCtx.fillStyle = color;
+  var leftOff = (legPhase === 0) ? 0 : -3;
+  renderCtx.fillRect(screenX - legSpacing - legWidth / 2, m.y + bodyH / 2 + leftOff, legWidth, legHeight - leftOff);
+  var rightOff = (legPhase === 1) ? 0 : -3;
+  renderCtx.fillRect(screenX + legSpacing - legWidth / 2, m.y + bodyH / 2 + rightOff, legWidth, legHeight - rightOff);
+}
+
 function drawMonsters(renderCtx) {
   if (gameState !== 'playing' && gameState !== 'dead' && gameState !== 'victory' && gameState !== 'levelTransition') return;
   var lc = getLevelColors();
   var beamGlowRgba = currentLevel === 2 ? 'rgba(0, 204, 255, 0.3)' : 'rgba(255, 0, 0, 0.3)';
+
   for (var i = 0; i < monsters.length; i++) {
     var m = monsters[i];
     if (m.dead) continue;
     var screenX = m.x - camera.x;
-    if (screenX < -200 || screenX > CONFIG.CANVAS_WIDTH + 200) continue;
-    var bodyW = 40, bodyH = 30;
+    if (screenX < -250 || screenX > CONFIG.CANVAS_WIDTH + 250) continue;
+
+    // A bomber that has gone off is nothing but its shockwave.
+    if (m.blasting) {
+      var bt = Math.min(1, m.blastTimer / BLAST_FRAMES);
+      renderCtx.save();
+      renderCtx.globalAlpha = (1 - bt) * 0.55;
+      renderCtx.fillStyle = lc.MONSTER_STAR;
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, m.y, BLAST_RADIUS * bt, 0, Math.PI * 2);
+      renderCtx.fill();
+      renderCtx.globalAlpha = 1 - bt;
+      renderCtx.strokeStyle = '#ffffff';
+      renderCtx.lineWidth = 2 + 5 * (1 - bt);
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, m.y, BLAST_RADIUS * bt, 0, Math.PI * 2);
+      renderCtx.stroke();
+      if (bt < 0.35) {
+        renderCtx.globalAlpha = 1 - bt / 0.35;
+        renderCtx.fillStyle = '#ffffff';
+        renderCtx.beginPath();
+        renderCtx.arc(screenX, m.y, 26 * (1 - bt / 0.35) + 8, 0, Math.PI * 2);
+        renderCtx.fill();
+      }
+      renderCtx.restore();
+      continue;
+    }
 
     // Phasing out: blow up, spin, fade. The first few frames blanch white so
     // the click reads as a hit before the monster starts going anywhere.
     var t = m.dying ? Math.min(1, m.deathTimer / MONSTER_DEATH_FRAMES) : 0;
     var deathAlpha = 1 - t;
-    var flashing = m.dying && m.deathTimer < 7;
+    var flashing = (m.dying && m.deathTimer < 7) || m.hitFlash > 0;
     var bodyColor = flashing ? '#ffffff' : lc.MONSTER;
     var starColor = flashing ? '#ffffff' : lc.MONSTER_STAR;
 
@@ -1312,74 +1576,128 @@ function drawMonsters(renderCtx) {
       renderCtx.globalAlpha = deathAlpha;
     }
 
-    // Legs
-    var legWidth = 8, legHeight = 10, legSpacing = 10;
-    var legPhase = Math.floor(m.walkCycleFrame / 15) % 2;
-    renderCtx.fillStyle = bodyColor;
-    var leftLegOff = (legPhase === 0) ? 0 : -3;
-    renderCtx.fillRect(screenX - legSpacing - legWidth / 2, m.y + bodyH / 2 + leftLegOff, legWidth, legHeight - leftLegOff);
-    var rightLegOff = (legPhase === 1) ? 0 : -3;
-    renderCtx.fillRect(screenX + legSpacing - legWidth / 2, m.y + bodyH / 2 + rightLegOff, legWidth, legHeight - rightLegOff);
+    if (m.type === 'floater') {
+      // A balloon on a wiggling tether.
+      renderCtx.strokeStyle = lc.MONSTER;
+      renderCtx.lineWidth = 2;
+      renderCtx.beginPath();
+      renderCtx.moveTo(screenX, m.y + m.hh);
+      renderCtx.quadraticCurveTo(screenX + Math.sin(m.bob * 2) * 8, m.y + m.hh + 12,
+                                 screenX, m.y + m.hh + 22);
+      renderCtx.stroke();
+      renderCtx.beginPath();
+      renderCtx.ellipse(screenX, m.y, m.hw, m.hh * 1.1, 0, 0, Math.PI * 2);
+      renderCtx.fillStyle = bodyColor;
+      renderCtx.fill();
+      renderCtx.save();
+      renderCtx.globalAlpha = deathAlpha * 0.35;
+      renderCtx.fillStyle = '#ffffff';
+      renderCtx.beginPath();
+      renderCtx.ellipse(screenX - m.hw * 0.35, m.y - m.hh * 0.4, m.hw * 0.28, m.hh * 0.2, -0.5, 0, Math.PI * 2);
+      renderCtx.fill();
+      renderCtx.restore();
+      drawMonsterFace(renderCtx, screenX, m.y - 2, 7, 3);
 
-    // Body
-    renderCtx.beginPath();
-    renderCtx.ellipse(screenX, m.y, bodyW / 2, bodyH / 2, 0, 0, Math.PI * 2);
-    renderCtx.fillStyle = bodyColor;
-    renderCtx.fill();
+    } else if (m.type === 'splitter') {
+      // A wobbling blob; the smaller it is, the faster it jiggles.
+      var wob = Math.sin(m.walkCycleFrame * (0.12 + m.tier * 0.06)) * 0.12;
+      renderCtx.beginPath();
+      renderCtx.ellipse(screenX, m.y, m.hw * (1 + wob), m.hh * (1 - wob), 0, 0, Math.PI * 2);
+      renderCtx.fillStyle = bodyColor;
+      renderCtx.fill();
+      var eye = Math.max(1.6, 3 - m.tier * 0.7);
+      drawMonsterFace(renderCtx, screenX, m.y - m.hh * 0.15, m.hw * 0.34, eye);
 
-    // Star
-    var starCX = screenX;
-    var starCY = m.y - bodyH / 2 - 10;
-    renderCtx.save();
-    // Multiplied, not assigned: assigning here would cancel the death fade.
-    renderCtx.globalAlpha = deathAlpha * (0.8 + Math.random() * 0.2);
-    drawStar(renderCtx, starCX, starCY, 10 + t * 6, 4);
-    renderCtx.fillStyle = starColor;
-    renderCtx.fill();
-    renderCtx.restore();
+    } else if (m.type === 'bomber') {
+      var bodyH = 30;
+      drawMonsterLegs(renderCtx, screenX, m, bodyH, bodyColor);
+      // Blink faster and redder the closer a chained fuse gets to zero.
+      var armedFlash = m.armed && (Math.floor(m.fuse / 2) % 2 === 0);
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, m.y, m.hw, 0, Math.PI * 2);
+      renderCtx.fillStyle = armedFlash ? '#ffffff' : bodyColor;
+      renderCtx.fill();
+      // Fuse: a short stalk with a spark that jitters
+      renderCtx.strokeStyle = lc.MONSTER_STAR;
+      renderCtx.lineWidth = 2.5;
+      renderCtx.beginPath();
+      renderCtx.moveTo(screenX, m.y - m.hw);
+      renderCtx.quadraticCurveTo(screenX + 6, m.y - m.hw - 8, screenX + 3, m.y - m.hw - 15);
+      renderCtx.stroke();
+      var sparkR = 3 + Math.random() * 2.5 + (m.armed ? 2 : 0);
+      renderCtx.save();
+      renderCtx.globalAlpha = deathAlpha;
+      renderCtx.fillStyle = '#ffffff';
+      renderCtx.beginPath();
+      renderCtx.arc(screenX + 3, m.y - m.hw - 15, sparkR, 0, Math.PI * 2);
+      renderCtx.fill();
+      renderCtx.globalAlpha = deathAlpha * 0.5;
+      renderCtx.fillStyle = lc.MONSTER_STAR;
+      renderCtx.beginPath();
+      renderCtx.arc(screenX + 3, m.y - m.hw - 15, sparkR * 2, 0, Math.PI * 2);
+      renderCtx.fill();
+      renderCtx.restore();
+      drawMonsterFace(renderCtx, screenX, m.y - 2, 8, 3.5);
 
-    // Beams
-    if (!m.dying && m.attacking && m.beamLength > 0) {
-      var bCX = m.x - camera.x;
-      var bCY = m.y - bodyH / 2 - 10;
-      for (var b = 0; b < 5; b++) {
-        var angle = (b * 72) * (Math.PI / 180);
-        var eX = bCX + Math.cos(angle) * m.beamLength;
-        var eY = bCY + Math.sin(angle) * m.beamLength;
-        renderCtx.save();
-        renderCtx.strokeStyle = beamGlowRgba;
-        renderCtx.lineWidth = 6;
+    } else if (m.type === 'armored') {
+      var abH = 30;
+      drawMonsterLegs(renderCtx, screenX, m, abH, bodyColor);
+      renderCtx.beginPath();
+      renderCtx.ellipse(screenX, m.y, m.hw, abH / 2, 0, 0, Math.PI * 2);
+      renderCtx.fillStyle = bodyColor;
+      renderCtx.fill();
+      // One plate per remaining hit, stacked over the back.
+      renderCtx.strokeStyle = flashing ? '#ffffff' : '#c9d3dd';
+      renderCtx.lineWidth = 4;
+      for (var pl = 0; pl < m.armor; pl++) {
         renderCtx.beginPath();
-        renderCtx.moveTo(bCX, bCY);
-        renderCtx.lineTo(eX, eY);
+        renderCtx.arc(screenX, m.y + 2, m.hw - 2 - pl * 6, Math.PI * 1.15, Math.PI * 1.85);
         renderCtx.stroke();
-        renderCtx.restore();
-        renderCtx.save();
-        renderCtx.strokeStyle = lc.LASER;
-        renderCtx.lineWidth = 2;
-        renderCtx.beginPath();
-        renderCtx.moveTo(bCX, bCY);
-        renderCtx.lineTo(eX, eY);
-        renderCtx.stroke();
-        renderCtx.restore();
       }
-    }
+      drawMonsterFace(renderCtx, screenX, m.y + 2, 8, 3.5);
 
-    // Eyes
-    renderCtx.fillStyle = '#ffffff';
-    renderCtx.beginPath();
-    renderCtx.arc(screenX - 7, m.y - 3, 3, 0, Math.PI * 2);
-    renderCtx.fill();
-    renderCtx.beginPath();
-    renderCtx.arc(screenX + 7, m.y - 3, 3, 0, Math.PI * 2);
-    renderCtx.fill();
-    renderCtx.fillStyle = '#000000';
-    renderCtx.beginPath();
-    renderCtx.arc(screenX - 6, m.y - 3, 1.5, 0, Math.PI * 2);
-    renderCtx.fill();
-    renderCtx.beginPath();
-    renderCtx.arc(screenX + 8, m.y - 3, 1.5, 0, Math.PI * 2);
-    renderCtx.fill();
+    } else {
+      // star
+      var sBodyW = 40, sBodyH = 30;
+      drawMonsterLegs(renderCtx, screenX, m, sBodyH, bodyColor);
+      renderCtx.beginPath();
+      renderCtx.ellipse(screenX, m.y, sBodyW / 2, sBodyH / 2, 0, 0, Math.PI * 2);
+      renderCtx.fillStyle = bodyColor;
+      renderCtx.fill();
+
+      var starCX = screenX;
+      var starCY = m.y - sBodyH / 2 - 10;
+      renderCtx.save();
+      // Multiplied, not assigned: assigning here would cancel the death fade.
+      renderCtx.globalAlpha = deathAlpha * (0.8 + Math.random() * 0.2);
+      drawStar(renderCtx, starCX, starCY, 10 + t * 6, 4);
+      renderCtx.fillStyle = starColor;
+      renderCtx.fill();
+      renderCtx.restore();
+
+      if (!m.dying && m.attacking && m.beamLength > 0) {
+        for (var b = 0; b < 5; b++) {
+          var angle = (b * 72) * (Math.PI / 180);
+          var eX = starCX + Math.cos(angle) * m.beamLength;
+          var eY = starCY + Math.sin(angle) * m.beamLength;
+          renderCtx.save();
+          renderCtx.strokeStyle = beamGlowRgba;
+          renderCtx.lineWidth = 6;
+          renderCtx.beginPath();
+          renderCtx.moveTo(starCX, starCY);
+          renderCtx.lineTo(eX, eY);
+          renderCtx.stroke();
+          renderCtx.strokeStyle = lc.LASER;
+          renderCtx.lineWidth = 2;
+          renderCtx.beginPath();
+          renderCtx.moveTo(starCX, starCY);
+          renderCtx.lineTo(eX, eY);
+          renderCtx.stroke();
+          renderCtx.restore();
+        }
+      }
+      drawMonsterFace(renderCtx, screenX, m.y - 3, 7, 3);
+    }
 
     renderCtx.restore();
 
@@ -1390,14 +1708,13 @@ function drawMonsters(renderCtx) {
       renderCtx.strokeStyle = lc.MONSTER_STAR;
       renderCtx.lineWidth = 1 + 3 * (1 - t);
       renderCtx.beginPath();
-      renderCtx.arc(screenX, m.y - bodyH / 2 - 10, 12 + t * 75, 0, Math.PI * 2);
+      renderCtx.arc(screenX, m.y - m.hh * 0.6, 12 + t * 75, 0, Math.PI * 2);
       renderCtx.stroke();
       renderCtx.restore();
     }
   }
   renderCtx.globalAlpha = 1.0;
 }
-
 function drawHammers(renderCtx) {
   if (gameState !== 'playing' && gameState !== 'dead' && gameState !== 'victory' && gameState !== 'levelTransition') return;
   var lc = getLevelColors();

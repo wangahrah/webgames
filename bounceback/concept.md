@@ -31,12 +31,47 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 - **If hit**: Player loses 1 life and respawns a short distance back with brief invincibility.
 - **Blocked by**: Shield (spacebar).
 
-### 2. Star Monster
+### 2. Monsters
+
+Five kinds patrol the course. Clicking is the point — he likes destroying them
+more than he likes the platforming, so each type is a different *kind* of click.
+Only the Star Monster's beams cost a life; every other monster merely shoves the
+player back, the same as a falling hammer does.
+
+#### Star Monster
 - A quirky monster that patrols a small area, walking back and forth.
 - Has a **star shape on its head** that glows.
 - **Attack**: Periodically stops and shoots **5 laser beams outward** in a star/radial pattern from the star on its head.
 - **Counter**: **Clicking the monster with the mouse** destroys it. It flashes white, then spins, swells and phases out over about three quarters of a second while its star bursts into sparks and a shockwave ring expands outward. It stops patrolling and stops being dangerous on the click frame — the animation is purely for show — and it stays gone until the level restarts.
-- There are 2-3 star monsters placed throughout the level.
+- There are three star monsters per level, among the sixteen-odd monsters of all kinds.
+
+#### Bomber
+- A round monster with a lit fuse sparking on its head. Patrols slowly.
+- **Click**: it detonates. A white core, a shockwave ring, screen shake, and
+  everything within the blast radius is destroyed with it.
+- **Chains**: other bombers caught in a blast light a short fuse and go off a
+  moment later rather than instantly, so a line of them cascades. They are
+  placed in clusters of two to four for exactly this reason.
+- **Threat**: the blast shoves the player too. Don't stand next to one.
+
+#### Splitter
+- A wobbling blob that bounces along the ground.
+- **Click**: it bursts into two smaller copies, which scatter. Click those and
+  each splits again into two tiny ones. Click a tiny one and it pops for good.
+  One splitter is seven satisfying clicks.
+- **Threat**: bumping into one shoves the player back.
+
+#### Armored
+- Wears three plates over its back.
+- **Click**: knocks one plate off with a flash and a shower of debris, and the
+  monster flinches away. The third click destroys it.
+- **Threat**: charges at the player when they come close, then shoves them.
+
+#### Floater
+- Drifts through the air on a lazy sine path, tethered like a balloon.
+- **Click**: pops in a wide ring of sparks. One click, but it's a moving target
+  well above the ground, so it takes aim.
+- **Threat**: bumping into one mid-jump shoves the player back.
 
 ### 3. Falling Hammers
 - Hammers drop from the top of the screen at semi-random intervals in certain zones.
@@ -56,7 +91,7 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 | Arrow Right / D | Roll right |
 | Arrow Up / W | Jump |
 | Spacebar | Activate shield (blocks lasers) |
-| Mouse Click | Click on a Star Monster to destroy it |
+| Mouse Click | Click a monster to destroy it (armored ones take three) |
 
 ## HUD (Heads-Up Display)
 - **Lives**: 3 flame icons (top-left). One extinguishes per life lost.
