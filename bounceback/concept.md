@@ -12,7 +12,8 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 - **Appearance**: A small, round, glowing fireball with a cute face (eyes). Leaves a faint ember trail as it rolls.
 - **Movement**: Rolls left/right with arrow keys (or A/D). Jumps with Up arrow (or W). The ball has a slight rolling animation (rotation).
 - **Lives**: The player starts with **3 lives** (displayed as flame icons in the HUD).
-- **Shield**: Pressing **Spacebar** activates a brief shield bubble around the fireball. The shield blocks lasers and lasts ~1 second with a short cooldown (~2 seconds). Visual: a translucent circle flashes around the player.
+- **Shield**: Holding **Spacebar** raises a shield bubble around the fireball. It blocks lasers and monster beams, lasts ~1 second, then needs ~2 seconds before it can be raised again — holding the key just cycles it. It is deliberately *not* a state you can live in. The HUD dot shows all three states: a bright ring when ready, a filled dial draining while it is up, a dark dial refilling while it recharges.
+- **What the shield does not stop**: falling hammers. A hammer smashes straight through a raised shield, knocks it out, and puts it on cooldown.
 
 ## Course / Level
 - The level scrolls horizontally from left to right.
@@ -76,7 +77,7 @@ player back, the same as a falling hammer does.
 ### 3. Falling Hammers
 - Hammers drop from the top of the screen at semi-random intervals in certain zones.
 - A brief **warning shadow/indicator** appears on the ground before each hammer falls (kid-friendly telegraph).
-- **If hit**: The player is **knocked/bounced backward** a short distance (not a life loss). This is more of an annoyance/setback than a punishment.
+- **If hit**: costs **1 life**, throws the player backward, and breaks the shield if one was up. Hammers are the one hazard the shield cannot answer, so hammer zones have to be crossed on timing and footwork rather than by holding space.
 - The hammers have a fiery handle to match the theme.
 
 ## Finish Line
@@ -90,12 +91,12 @@ player back, the same as a falling hammer does.
 | Arrow Left / A | Roll left |
 | Arrow Right / D | Roll right |
 | Arrow Up / W | Jump |
-| Spacebar | Activate shield (blocks lasers) |
+| Spacebar | Hold for shield (~1s up, ~2s cooldown; blocks lasers, NOT hammers) |
 | Mouse Click | Click a monster to destroy it (armored ones take three) |
 
 ## HUD (Heads-Up Display)
 - **Lives**: 3 flame icons (top-left). One extinguishes per life lost.
-- **Shield cooldown**: Small circular indicator near the player or in the corner showing when shield is ready.
+- **Shield cooldown**: Circular dial under the lives, top-left. Bright ring = ready, filled and draining = up, dark and refilling = recharging.
 
 ## Game States
 1. **Title Screen**: "BOUNCEBACK" in fiery text, "Click to Start" prompt.
@@ -113,5 +114,5 @@ player back, the same as a falling hammer does.
 ## Design Principles (for implementation)
 - **Keep it simple**: Straightforward platformer physics (gravity, ground collision, basic AABB hitboxes).
 - **Kid-friendly**: Forgiving hit detection, generous shield window, clear visual telegraphs for all hazards.
-- **Fun over difficulty**: The game should feel beatable on the first or second try. Hammers knock you back but don't kill. Shield recharges fast. Monsters die in one click.
+- **Fun over difficulty**: The game should feel beatable in a few tries. Monsters die in one click (armored ones in three). The shield recharges quickly. Hammers are the deliberate exception — they cost a life and ignore the shield, so hammer zones are the real test.
 - **Visually clear**: High contrast between player, hazards, and background. Big, readable shapes.

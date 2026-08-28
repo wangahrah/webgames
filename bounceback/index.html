@@ -30,8 +30,11 @@ const CONFIG = {
   PLAYER_RADIUS:   20,
   PLAYER_SPEED:    4,
   JUMP_FORCE:      -11,
-  SHIELD_DURATION: 90,
-  SHIELD_COOLDOWN: 90,
+  // Declared from the start and wired to nothing until the shield was made
+  // spendable. Set to the ~1s up / ~2s cooldown concept.md always specified;
+  // they were 90/90, which would have left you shielded half the time.
+  SHIELD_DURATION: 60,
+  SHIELD_COOLDOWN: 120,
   LEVEL_LENGTH:    8000,
   CAMERA_OFFSET_X: 200,
   COLORS: {
@@ -367,17 +370,42 @@ function drawHUDAndScreens(renderCtx) {
     var indicatorY = 60;
     var indicatorRadius = 10;
 
+    // Three states, because the shield can now be spent: full while it is up
+    // and draining, a refilling wedge while it recharges, a bright empty ring
+    // when it is ready again.
     renderCtx.beginPath();
     renderCtx.arc(indicatorX, indicatorY, indicatorRadius, 0, Math.PI * 2);
     if (player.shieldActive) {
+      var left = Math.max(0, player.shieldTimer / CONFIG.SHIELD_DURATION);
       renderCtx.fillStyle = 'rgba(100, 220, 255, 0.7)';
       renderCtx.fill();
       renderCtx.strokeStyle = 'rgba(100, 220, 255, 0.9)';
+      renderCtx.lineWidth = 2.5;
+      renderCtx.stroke();
+      renderCtx.beginPath();
+      renderCtx.moveTo(indicatorX, indicatorY);
+      renderCtx.arc(indicatorX, indicatorY, indicatorRadius - 1,
+                    -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
+      renderCtx.closePath();
+      renderCtx.fillStyle = 'rgba(220, 250, 255, 0.9)';
+      renderCtx.fill();
+    } else if (player.shieldCooldown > 0) {
+      var back = 1 - (player.shieldCooldown / CONFIG.SHIELD_COOLDOWN);
+      renderCtx.strokeStyle = 'rgba(100, 200, 255, 0.25)';
+      renderCtx.lineWidth = 2.5;
+      renderCtx.stroke();
+      renderCtx.beginPath();
+      renderCtx.moveTo(indicatorX, indicatorY);
+      renderCtx.arc(indicatorX, indicatorY, indicatorRadius - 1,
+                    -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * back);
+      renderCtx.closePath();
+      renderCtx.fillStyle = 'rgba(100, 200, 255, 0.35)';
+      renderCtx.fill();
     } else {
-      renderCtx.strokeStyle = 'rgba(100, 200, 255, 0.3)';
+      renderCtx.strokeStyle = 'rgba(140, 230, 255, 0.95)';
+      renderCtx.lineWidth = 2.5;
+      renderCtx.stroke();
     }
-    renderCtx.lineWidth = 2.5;
-    renderCtx.stroke();
   }
 
   // Title Screen
@@ -1438,6 +1466,11 @@ function updateHammers(dt) {
     var pBottom = player.y + player.radius;
     if (pRight > hammer.x - 15 && pLeft < hammer.x + 15 &&
         pBottom > hammer.y && pTop < hammer.y + 45) {
+      // A hammer smashes straight through a raised shield: it knocks the
+      // shield out, costs a life, and still throws the player. hurtPlayer
+      // no-ops while invincible, so a cluster of hammers costs one life.
+      breakShield();
+      hurtPlayer(true);
       knockbackPlayer((player.x >= hammer.x) ? 1 : -1);
       hammer.active = false;
     }
@@ -1809,14 +1842,25 @@ var emberTrail = [];
 var EMBER_TRAIL_MAX = 5;
 var playerFrameCounter = 0;
 
-function hurtPlayer() {
-  if (player.invincible || player.shieldActive) return;
+// `ignoreShield` is for hazards the shield was never meant to stop -- a
+// falling hammer goes through it. Everything else calls hurtPlayer() with no
+// argument and behaves exactly as before.
+function hurtPlayer(ignoreShield) {
+  if (player.invincible) return;
+  if (player.shieldActive && !ignoreShield) return;
   player.lives--;
   player.invincible = true;
   player.invincibleTimer = 120;
   player.x -= 60;
   if (player.x < 0) player.x = 0;
   if (player.lives <= 0) setState('dead');
+}
+
+// Drop the shield and start its cooldown. A hammer to the head does this.
+function breakShield() {
+  player.shieldActive = false;
+  player.shieldTimer = 0;
+  player.shieldCooldown = CONFIG.SHIELD_COOLDOWN;
 }
 
 function knockbackPlayer(direction) {
@@ -1875,8 +1919,24 @@ function updatePlayer(dt) {
     player.onGround = false;
   }
 
-  // Shield is active as long as space is held
-  player.shieldActive = !!keys[' '];
+  // The shield is a burst, not a state you can live in: about a second up,
+  // then two before it can be raised again. Holding space cycles it. Letting
+  // go early still starts the cooldown -- otherwise tapping would give you a
+  // shield on nearly every frame, which is what "hold space and be immortal"
+  // was. shieldTimer and shieldCooldown were declared from the start and
+  // never wired to anything until now.
+  var wantShield = !!keys[' '];
+  if (player.shieldCooldown > 0) {
+    player.shieldCooldown -= dt;
+    if (player.shieldCooldown < 0) player.shieldCooldown = 0;
+    player.shieldActive = false;
+  } else if (player.shieldActive) {
+    player.shieldTimer -= dt;
+    if (!wantShield || player.shieldTimer <= 0) breakShield();
+  } else if (wantShield) {
+    player.shieldActive = true;
+    player.shieldTimer = CONFIG.SHIELD_DURATION;
+  }
 
   if (player.invincible) {
     player.invincibleTimer -= dt;
