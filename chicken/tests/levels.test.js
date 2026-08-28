@@ -152,6 +152,31 @@ test('ice never sits under a wall or a gate', () => {
   }
 });
 
+test('pads sit clear of walls, ice, and each other', () => {
+  for (const l of Levels.LEVELS) {
+    if (!l.pads || l.pads.length === 0) continue;
+    const ends = [];
+    for (const p of l.pads) ends.push(p.a, p.b);
+    for (const p of ends) {
+      const rects = (l.walls || []).concat(l.gates || []).concat(l.ice || []);
+      for (const w of rects) {
+        eq(Levels.segmentRectT(p.x, p.y, p.x, p.y, w, Levels.PAD_R), null,
+           `${l.id}: pad ring overlaps a rect`);
+      }
+      for (const q of [l.start, l.nest, ...l.eggs, ...(l.keys || [])]) {
+        ok(Math.hypot(p.x - q.x, p.y - q.y) > Levels.PAD_R,
+           `${l.id}: something sits inside a pad ring`);
+      }
+    }
+    for (let i = 0; i < ends.length; i++) {
+      for (let j = i + 1; j < ends.length; j++) {
+        ok(Math.hypot(ends[i].x - ends[j].x, ends[i].y - ends[j].y) > 2 * Levels.PAD_R,
+           `${l.id}: two pad rings overlap`);
+      }
+    }
+  }
+});
+
 console.log('\nwall geometry');
 
 const WALL = { x: 100, y: 0, w: 20, h: 200 };
@@ -279,6 +304,33 @@ test('diagonal glides exit along the same slope', () => {
   near(out.y / out.x, 1, 1e-6, 'slope preserved');
 });
 
+console.log('\nwarp pads');
+
+const PADS = [{ a: { x: 300, y: 600 }, b: { x: 650, y: 375 } }];
+
+test('a pad fires when the path enters its ring', () => {
+  const hit = Levels.padHit(125, 600, 350, 600, PADS, null);
+  ok(hit);
+  eq(hit.pair, 0);
+  eq(hit.end, 'a');
+  near(hit.x, 300, 1e-6, 'pad centre x');
+});
+
+test('a path that stops short of the ring does not fire', () => {
+  eq(Levels.padHit(125, 600, 260, 600, PADS, null), null);
+});
+
+test('the pair you just came through is inert', () => {
+  eq(Levels.padHit(650, 375, 660, 375, PADS, 0), null);
+  ok(Levels.padHit(600, 375, 700, 375, PADS, null), 'fires once re-armed');
+});
+
+test('pads fire in both directions', () => {
+  const hit = Levels.padHit(700, 375, 500, 375, PADS, null);
+  ok(hit);
+  eq(hit.end, 'b');
+});
+
 
 console.log('\nevery level is still winnable');
 
@@ -307,6 +359,90 @@ function simulate(level, program) {
   }
   const isGate = w => !!level.gates && level.gates.indexOf(w) !== -1;
 
+  let lastPad = null;
+
+  // Walk from (x0,y0) toward (x1,y1) in small steps; the shared (x, y) tracks
+  // the walker. Walls, gates, foxes, the nest, eggs, keys and warp pads all
+  // apply per step; ice is folded into the endpoint by the caller. Returns
+  // the outcome that stopped the walk, or null when it completed.
+  function walk(x0, y0, x1, y1, depth) {
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    if (len < 1e-9) return null;
+    const sx = (x1 - x0) / len, sy = (y1 - y0) / len;
+    let travelled = 0;
+    while (travelled < len - 1e-9) {
+      const stepLen = Math.min(STEP, len - travelled);
+      travelled += stepLen;
+      const nx = x0 + sx * travelled, ny = y0 + sy * travelled;
+      const walls = wallsNow();
+
+      const wall = Levels.segmentHitsWalls(x, y, nx, ny, walls, Levels.ANIMAL_R);
+      const fox = level.foxes.length
+        ? Levels.segmentHitsCircles(x, y, nx, ny, level.foxes,
+                                    Levels.FOX_R + Levels.ANIMAL_R)
+        : null;
+      const nest = nestArmed
+        ? Levels.segmentHitsCircles(x, y, nx, ny, [level.nest], Levels.NEST_R)
+        : null;
+
+      let stop = null;
+      const consider = (h, outcome) => {
+        if (h && (!stop || h.t < stop.t)) stop = { t: h.t, outcome };
+      };
+      consider(wall, wall && isGate(wall.wall) ? 'locked' : 'bump');
+      consider(fox, 'caught');
+      consider(nest, 'win');
+
+      const t = stop ? stop.t : 1;
+      let ex = x + (nx - x) * t, ey = y + (ny - y) * t;
+
+      // Warp pads truncate the step at the ring's centre.
+      let warped = null;
+      if (level.pads && level.pads.length > 0 && depth < 16 && !stop) {
+        warped = Levels.padHit(x, y, ex, ey, level.pads, lastPad);
+        if (warped) { ex = warped.x; ey = warped.y; }
+      }
+
+      for (const i of Levels.eggsCollectedBy(x, y, ex, ey, level.eggs, eggs)) {
+        eggs.add(i);
+      }
+      for (const i of Levels.eggsCollectedBy(x, y, ex, ey, level.keys || [],
+                                             keys, Levels.KEY_R)) {
+        keys.add(i);
+      }
+      if (!nestArmed && Math.max(nd(x, y), nd(ex, ey)) > Levels.NEST_R) {
+        nestArmed = true;
+      }
+
+      // The pair just used stays inert until its rings are left behind.
+      if (lastPad !== null) {
+        const pair = level.pads[lastPad];
+        const d = Math.min(
+          Math.hypot(ex - pair.a.x, ey - pair.a.y),
+          Math.hypot(ex - pair.b.x, ey - pair.b.y));
+        if (d > Levels.PAD_R + 6) lastPad = null;
+      }
+
+      x = ex; y = ey;
+      if (stop) return stop.outcome;
+
+      if (warped) {
+        const twin = warped.end === 'a'
+          ? level.pads[warped.pair].b
+          : level.pads[warped.pair].a;
+        lastPad = warped.pair;
+        let rx = twin.x + (x1 - warped.x), ry = twin.y + (y1 - warped.y);
+        if (level.ice && level.ice.length > 0) {
+          const slid = Levels.slideDestination(twin.x, twin.y, rx, ry, level.ice);
+          if (slid) { rx = slid.x; ry = slid.y; }
+        }
+        x = twin.x; y = twin.y;
+        return walk(twin.x, twin.y, rx, ry, depth + 1);
+      }
+    }
+    return null;
+  }
+
   for (const op of queue) {
     if (op.op === 'right') { heading += op.arg; continue; }
     if (op.op === 'left') { heading -= op.arg; continue; }
@@ -332,43 +468,8 @@ function simulate(level, program) {
       if (slid) total = Math.hypot(slid.x - x, slid.y - y);
     }
 
-    for (let done = 0; done < total; done += STEP) {
-      const len = Math.min(STEP, total - done);
-      const nx = x + ux * len, ny = y + uy * len;
-      const walls = wallsNow();
-
-      const wall = Levels.segmentHitsWalls(x, y, nx, ny, walls, Levels.ANIMAL_R);
-      const fox = level.foxes.length
-        ? Levels.segmentHitsCircles(x, y, nx, ny, level.foxes,
-                                    Levels.FOX_R + Levels.ANIMAL_R)
-        : null;
-      const nest = nestArmed
-        ? Levels.segmentHitsCircles(x, y, nx, ny, [level.nest], Levels.NEST_R)
-        : null;
-
-      let stop = null;
-      const consider = (h, outcome) => {
-        if (h && (!stop || h.t < stop.t)) stop = { t: h.t, outcome };
-      };
-      consider(wall, wall && isGate(wall.wall) ? 'locked' : 'bump');
-      consider(fox, 'caught');
-      consider(nest, 'win');
-
-      const t = stop ? stop.t : 1;
-      const ex = x + (nx - x) * t, ey = y + (ny - y) * t;
-      for (const i of Levels.eggsCollectedBy(x, y, ex, ey, level.eggs, eggs)) {
-        eggs.add(i);
-      }
-      for (const i of Levels.eggsCollectedBy(x, y, ex, ey, level.keys || [],
-                                             keys, Levels.KEY_R)) {
-        keys.add(i);
-      }
-      if (!nestArmed && Math.max(nd(x, y), nd(ex, ey)) > Levels.NEST_R) {
-        nestArmed = true;
-      }
-      x = ex; y = ey;
-      if (stop) return { outcome: stop.outcome, eggs, keys, x, y };
-    }
+    const outcome = walk(x, y, x + ux * total, y + uy * total, 0);
+    if (outcome) return { outcome, eggs, keys, x, y };
   }
   return { outcome: 'unfinished', eggs, keys, x, y };
 }
@@ -457,6 +558,33 @@ test('the lazy row glides you straight into the fence pocket', () => {
   // Glide east on the start row, then keep walking into the fence.
   const r = simulate(lv, 'fd 250\nfd 100\n');
   eq(r.outcome, 'bump');
+});
+
+test('the wormhole carries you across the divider mid-stride', () => {
+  const lv = Levels.byId('warp');
+  // The naive walk at the egg: the pad eats the stride, egg untouched,
+  // and you pop out the far side still heading east.
+  const r = simulate(lv, 'fd 225\n');
+  eq(r.outcome, 'unfinished');
+  ok(r.x > 500, `ended east of the divider: x=${r.x}`);
+  eq(r.eggs.size, 0, 'the egg past the pad was never reached');
+});
+
+test('you do not bounce straight back out of the far pad', () => {
+  const lv = Levels.byId('warp');
+  // A long stride east crosses pad A with plenty left over. If landing on
+  // the twin re-triggered its ring, you would pop straight back west.
+  const r = simulate(lv, 'fd 500\n');
+  eq(r.outcome, 'unfinished');
+  ok(r.x > 600, `travelled east of the twin: x=${r.x}`);
+});
+
+test('a stride emerging onto ice glides too', () => {
+  const lv = Levels.byId('warp');
+  // Cross the pad with a long stride that would come to rest in the pond.
+  const r = simulate(lv, 'fd 400\n');
+  eq(r.outcome, 'unfinished');
+  ok(r.x > 940, `glided off the pond\'s far edge: x=${r.x}`);
 });
 
 test('a basket sitting on the start square is not won at t=0', () => {

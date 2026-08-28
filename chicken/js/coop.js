@@ -54,7 +54,11 @@ const Coop = (function () {
   let quest = null;
 
   function blankQuest() {
-    return { eggs: new Set(), keys: new Set(), nestArmed: false, outcome: null };
+    return {
+      eggs: new Set(), keys: new Set(),
+      nestArmed: false, outcome: null,
+      lastPad: null,
+    };
   }
 
   function layoutWorld() {
@@ -144,6 +148,8 @@ const Coop = (function () {
     playTone('square', 330, 660, 0.18, 0.15);
     setTimeout(() => playTone('square', 660, 990, 0.15, 0.12), 90);
   }
+  // A rising zap for stepping through a wormhole.
+  function playWarp() { playTone('sine', 200, 900, 0.2, 0.18); }
   function playWin() {
     playTone('square', 520, 780, 0.12, 0.16);
     setTimeout(() => playTone('square', 780, 1040, 0.18, 0.16), 120);
@@ -593,6 +599,24 @@ const Coop = (function () {
       }
     }
 
+    // Warp pads: 🌀 in a dashed ring showing the trigger radius.
+    if (level.pads) {
+      for (const p of level.pads) {
+        for (const end of [p.a, p.b]) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(30, 136, 229, 0.5)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 6]);
+          ctx.beginPath();
+          ctx.arc(end.x, end.y, Levels.PAD_R, 0, 2 * Math.PI);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          glyph('🌀', end.x, end.y, 30);
+          ctx.restore();
+        }
+      }
+    }
+
     ctx.restore();
   }
 
@@ -782,6 +806,17 @@ const Coop = (function () {
     return !!level.gates && level.gates.indexOf(wall) !== -1;
   }
 
+  // The pair you just came through stays quiet until you have stepped off
+  // both of its rings — otherwise arriving would instantly bounce you back.
+  function rearmPads() {
+    if (!level || !level.pads || quest.lastPad === null) return;
+    const pair = level.pads[quest.lastPad];
+    const d = Math.min(
+      Math.hypot(chicken.x - pair.a.x, chicken.y - pair.a.y),
+      Math.hypot(chicken.x - pair.b.x, chicken.y - pair.b.y));
+    if (d > Levels.PAD_R + 6) quest.lastPad = null;
+  }
+
   // Move the animal from (x0,y0) toward (x1,y1). Returns where it actually
   // got to and what stopped it, and collects any eggs brushed on the way.
   function resolveMove(x0, y0, x1, y1) {
@@ -910,6 +945,12 @@ const Coop = (function () {
         const moved = resolveMove(chicken.x, chicken.y, newX, newY);
         newX = moved.x; newY = moved.y; outcome = moved.outcome;
       }
+      let warp = null;
+      if (level && level.pads && level.pads.length > 0 && !outcome) {
+        warp = Levels.padHit(chicken.x, chicken.y, newX, newY,
+                             level.pads, quest.lastPad);
+        if (warp) { newX = warp.x; newY = warp.y; }
+      }
       if (chicken.penDown) {
         tctx.strokeStyle = chicken.color;
         tctx.lineWidth = 2;
@@ -921,6 +962,29 @@ const Coop = (function () {
       }
       chicken.x = newX; chicken.y = newY;
       if (outcome) { endQuestRun(outcome); return; }
+      if (warp) {
+        // You come out of the twin still walking: the rest of this move's
+        // stride continues from the far pad, measured from its centre. If
+        // that stride would end on ice, it glides too — same rule, new legs.
+        const twin = warp.end === 'a' ? level.pads[warp.pair].b
+                                      : level.pads[warp.pair].a;
+        let restX = twin.x + (tgt.x - warp.x);
+        let restY = twin.y + (tgt.y - warp.y);
+        if (level.ice && level.ice.length > 0) {
+          const slid = Levels.slideDestination(twin.x, twin.y, restX, restY,
+                                               level.ice);
+          if (slid) { restX = slid.x; restY = slid.y; }
+        }
+        opFrom = { x: twin.x, y: twin.y, heading: chicken.heading };
+        chicken.x = twin.x; chicken.y = twin.y;
+        op._slide = { x: restX, y: restY };
+        op._dur = Math.max(16, dur * (1 - t));
+        opStart = now;
+        quest.lastPad = warp.pair;
+        playWarp();
+        render();
+      }
+      rearmPads();
     } else if (op.op === 'right' || op.op === 'left') {
       const tgt = targetOf(op, opFrom);
       chicken.heading = opFrom.heading + (tgt.heading - opFrom.heading) * t;

@@ -17,6 +17,7 @@ var Levels = (function () {
   const NEST_R = 35;     // how close counts as "arrived"
   const EGG_R = 26;      // how close counts as "picked up"
   const KEY_R = 26;      // how close counts as "key grabbed"
+  const PAD_R = 28;      // how close counts as "stepped on a warp pad"
 
   // ---- levels ---------------------------------------------------------------
   //
@@ -38,6 +39,10 @@ var Levels = (function () {
   //           every pond — the renderer extends its move target with
   //           slideDestination() before animating. Walls, foxes and the
   //           basket are still checked per frame along the glide.
+  //   pads    optional warp pairs {a:{x,y}, b:{x,y}}, bidirectional. Entering
+  //           one ring teleports you to the twin, still walking — the rest
+  //           of the move's stride continues from the far side. The pair you
+  //           just came through stays quiet until you step off it.
   //   par     source-statement count for the third star. `repeat 4 [...]`
   //           counts as 3 statements, eight flat lines as 8 — that is the
   //           whole point of par.
@@ -247,6 +252,28 @@ var Levels = (function () {
         '# Brrr! The pond is ICE. Whatever ends a move on the\n' +
         '# pond keeps sliding to the far edge...\n',
     },
+    {
+      id: 'warp',
+      name: 'Wormholes',
+      hint: 'the swirly pads teleport you — and you come out still walking',
+      start: { x: 125, y: 600, heading: 0 },
+      nest: { x: 875, y: 600 },
+      eggs: [
+        { x: 350, y: 600 },
+        { x: 850, y: 375 },
+      ],
+      ice: [{ x: 775, y: 300, w: 175, h: 150 }],
+      walls: [{ x: 475, y: 0, w: 50, h: 750 }],
+      pads: [{ a: { x: 300, y: 600 }, b: { x: 650, y: 375 } }],
+      foxes: [],
+      par: 14,
+      solution:
+        'lt 90\nfd 100\nrt 90\nfd 225\nrt 90\nfd 100\nrt 90\nfd 50\nlt 180\n' +
+        'fd 200\nrt 90\nfd 225\nrt 90\nfd 75\n',
+      starter:
+        '# A fence with no gap — but two swirly pads.\n' +
+        '# They are wormholes. Step on one and see...\n',
+    },
   ];
 
   function byId(id) {
@@ -419,6 +446,27 @@ var Levels = (function () {
     return { x: px, y: py };
   }
 
+  // ---- warp pads -------------------------------------------------------------
+
+  // Earliest warp-ring entry along a segment. `skipPair` (a pad index, or
+  // null) is inert — the pair you just arrived through stays quiet until you
+  // have stepped off its rings. Returns { pair, end, x, y } (the pad centre)
+  // or null.
+  function padHit(x0, y0, x1, y1, pads, skipPair) {
+    if (!pads || pads.length === 0) return null;
+    let best = null;
+    for (let i = 0; i < pads.length; i++) {
+      if (i === skipPair) continue;
+      for (const end of ['a', 'b']) {
+        const hit = segmentHitsCircles(x0, y0, x1, y1, [pads[i][end]], PAD_R);
+        if (hit && (!best || hit.t < best.t)) {
+          best = { pair: i, end, x: pads[i][end].x, y: pads[i][end].y };
+        }
+      }
+    }
+    return best;
+  }
+
   // ---- scoring --------------------------------------------------------------
   //
   // Reaching the basket always wins — collecting every egg is a bonus star,
@@ -436,11 +484,11 @@ var Levels = (function () {
 
   return {
     WORLD, LEVELS, byId,
-    ANIMAL_R, FOX_R, NEST_R, EGG_R, KEY_R,
+    ANIMAL_R, FOX_R, NEST_R, EGG_R, KEY_R, PAD_R,
     borderWalls, wallsOf,
     segmentRectT, segmentHitsWalls, segmentHitsCircles,
     pointSegmentDistance, eggsCollectedBy,
-    slideDestination,
+    slideDestination, padHit,
     starsFor,
   };
 })();

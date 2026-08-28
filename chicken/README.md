@@ -34,7 +34,9 @@ inside a program overrides it until the next Reset.
   rebuilds its wall list and the gate fades to a dashed outline. Ice ponds
   take away your stop: a move that would end on the ice glides on to the far
   edge instead (see `slideDestination()`), which makes picking your approach
-  row a lesson in dead reckoning. Progress
+  row a lesson in dead reckoning. Wormhole pads teleport you to their twin
+  mid-stride — you come out the far side still walking the rest of your `fd`
+  — and the pair you just used stays quiet until you step off it. Progress
   lives under `chicken.quest.v1`, and every level keeps its own draft, so
   wandering into a puzzle never eats your free-draw code.
 
@@ -274,3 +276,18 @@ chicken/
       (distance-proportional, not a teleport)
 - [ ] A big single `fd` that strides the whole pond in one go does not
       slide — you only slide when you would have STOPPED on the ice
+
+### Wormholes
+
+- [ ] Wormholes draws 🌀 pads in dashed rings — the rings read as
+      "something happens here"
+- [ ] Walking into a pad teleports you to its twin with a rising zap,
+      mid-stride: the leftover `fd` continues from the far side
+- [ ] You are never stranded standing on a pad — landing consumes the
+      stride to the pad's centre
+- [ ] The pair you just came through does not bounce you straight back;
+      step away, come back, and it works again
+- [ ] A stride that emerges heading into the pond glides on landing
+      (warp + ice compose)
+- [ ] The divider fence really does force the pad: no walking around it
+- [ ] 🌀 renders as a real glyph on the kids' machines
