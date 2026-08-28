@@ -973,6 +973,9 @@ function initLasers() {
 
 var monsters = [];
 
+// How long a clicked monster takes to phase out, in frames (~0.75s at 60fps).
+var MONSTER_DEATH_FRAMES = 45;
+
 function initMonsters() {
   monsters = [];
   for (var i = 0; i < monsterPlacements.length; i++) {
@@ -980,10 +983,13 @@ function initMonsters() {
     monsters.push({
       x: p.x, y: p.y,
       patrolLeft: p.patrolLeft, patrolRight: p.patrolRight,
-      vx: 1, stunTimer: 0, attackTimer: 0,
+      vx: 1, attackTimer: 0,
       attacking: false, beamLength: 0,
       beamPhase: 'idle', beamFrameCounter: 0,
-      walkCycleFrame: 0
+      walkCycleFrame: 0,
+      // Click one and it phases out: dying runs the animation, dead skips it
+      // entirely. Both reset with the level, so they come back on a retry.
+      dying: false, deathTimer: 0, dead: false
     });
   }
 }
@@ -1073,27 +1079,54 @@ function updateLasers(dt) {
   }
 }
 
+// Clicking a star monster pops it. It stops patrolling, stops shooting and
+// stops being dangerous on the same frame -- the animation that follows is
+// only for show, so a monster mid-phase-out can never still hurt you.
+function killMonster(m) {
+  m.dying = true;
+  m.deathTimer = 0;
+  m.attacking = false;
+  m.beamPhase = 'idle';
+  m.beamLength = 0;
+  m.beamFrameCounter = 0;
+
+  // Burst of sparks from the star on its head, reusing the hammer spark
+  // system so these are updated and drawn for free.
+  var lc = getLevelColors();
+  var starCY = m.y - 15 - 10;
+  for (var s = 0; s < 18; s++) {
+    var a = (Math.PI * 2 / 18) * s + (Math.random() - 0.5) * 0.4;
+    var sp = 2 + Math.random() * 4.5;
+    hammerSparks.push({
+      x: m.x, y: starCY,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 1.5,
+      life: 1.0,
+      size: 2 + Math.random() * 3,
+      color: (s % 2 === 0) ? lc.MONSTER_STAR : lc.MONSTER
+    });
+  }
+}
+
 function updateMonsters(dt) {
   for (var i = 0; i < monsters.length; i++) {
     var m = monsters[i];
+    if (m.dead) continue;
     m.y = CONFIG.GROUND_Y - 15 - 10;
+
+    if (m.dying) {
+      m.deathTimer += dt;
+      if (m.deathTimer >= MONSTER_DEATH_FRAMES) m.dead = true;
+      continue;
+    }
 
     if (mouseClick !== null) {
       if (mouseClick.x >= m.x - 20 && mouseClick.x <= m.x + 20 &&
           mouseClick.y >= m.y - 25 && mouseClick.y <= m.y + 25) {
-        m.stunTimer = 180;
-        m.attacking = false;
-        m.beamPhase = 'idle';
-        m.beamLength = 0;
-        m.beamFrameCounter = 0;
+        killMonster(m);
         mouseClick = null;
+        continue;
       }
-    }
-
-    if (m.stunTimer > 0) {
-      m.stunTimer -= dt;
-      m.walkCycleFrame += dt;
-      continue;
     }
 
     if (m.attacking) {
@@ -1150,6 +1183,11 @@ function updateMonsters(dt) {
     }
     m.walkCycleFrame += dt;
   }
+
+  // A click is a one-frame event. Without this it lingers in world space
+  // forever, and the next monster to patrol into that spot dies without
+  // being clicked -- harmless when a click only stunned, not harmless now.
+  mouseClick = null;
 }
 
 function updateHammers(dt) {
@@ -1251,15 +1289,33 @@ function drawMonsters(renderCtx) {
   var beamGlowRgba = currentLevel === 2 ? 'rgba(0, 204, 255, 0.3)' : 'rgba(255, 0, 0, 0.3)';
   for (var i = 0; i < monsters.length; i++) {
     var m = monsters[i];
+    if (m.dead) continue;
     var screenX = m.x - camera.x;
     if (screenX < -200 || screenX > CONFIG.CANVAS_WIDTH + 200) continue;
     var bodyW = 40, bodyH = 30;
-    var isStunned = m.stunTimer > 0;
+
+    // Phasing out: blow up, spin, fade. The first few frames blanch white so
+    // the click reads as a hit before the monster starts going anywhere.
+    var t = m.dying ? Math.min(1, m.deathTimer / MONSTER_DEATH_FRAMES) : 0;
+    var deathAlpha = 1 - t;
+    var flashing = m.dying && m.deathTimer < 7;
+    var bodyColor = flashing ? '#ffffff' : lc.MONSTER;
+    var starColor = flashing ? '#ffffff' : lc.MONSTER_STAR;
+
+    renderCtx.save();
+    if (m.dying) {
+      var sc = 1 + t * 0.7;
+      renderCtx.translate(screenX, m.y);
+      renderCtx.rotate(t * 1.2);
+      renderCtx.scale(sc, sc);
+      renderCtx.translate(-screenX, -m.y);
+      renderCtx.globalAlpha = deathAlpha;
+    }
 
     // Legs
     var legWidth = 8, legHeight = 10, legSpacing = 10;
     var legPhase = Math.floor(m.walkCycleFrame / 15) % 2;
-    renderCtx.fillStyle = lc.MONSTER;
+    renderCtx.fillStyle = bodyColor;
     var leftLegOff = (legPhase === 0) ? 0 : -3;
     renderCtx.fillRect(screenX - legSpacing - legWidth / 2, m.y + bodyH / 2 + leftLegOff, legWidth, legHeight - leftLegOff);
     var rightLegOff = (legPhase === 1) ? 0 : -3;
@@ -1268,21 +1324,22 @@ function drawMonsters(renderCtx) {
     // Body
     renderCtx.beginPath();
     renderCtx.ellipse(screenX, m.y, bodyW / 2, bodyH / 2, 0, 0, Math.PI * 2);
-    renderCtx.fillStyle = lc.MONSTER;
+    renderCtx.fillStyle = bodyColor;
     renderCtx.fill();
 
     // Star
     var starCX = screenX;
     var starCY = m.y - bodyH / 2 - 10;
     renderCtx.save();
-    renderCtx.globalAlpha = isStunned ? 0.3 : (0.8 + Math.random() * 0.2);
-    drawStar(renderCtx, starCX, starCY, 10, 4);
-    renderCtx.fillStyle = lc.MONSTER_STAR;
+    // Multiplied, not assigned: assigning here would cancel the death fade.
+    renderCtx.globalAlpha = deathAlpha * (0.8 + Math.random() * 0.2);
+    drawStar(renderCtx, starCX, starCY, 10 + t * 6, 4);
+    renderCtx.fillStyle = starColor;
     renderCtx.fill();
     renderCtx.restore();
 
     // Beams
-    if (m.attacking && m.beamLength > 0) {
+    if (!m.dying && m.attacking && m.beamLength > 0) {
       var bCX = m.x - camera.x;
       var bCY = m.y - bodyH / 2 - 10;
       for (var b = 0; b < 5; b++) {
@@ -1323,7 +1380,22 @@ function drawMonsters(renderCtx) {
     renderCtx.beginPath();
     renderCtx.arc(screenX + 8, m.y - 3, 1.5, 0, Math.PI * 2);
     renderCtx.fill();
+
+    renderCtx.restore();
+
+    // Shockwave ring, outside the body transform so it expands on its own.
+    if (m.dying) {
+      renderCtx.save();
+      renderCtx.globalAlpha = (1 - t) * 0.7;
+      renderCtx.strokeStyle = lc.MONSTER_STAR;
+      renderCtx.lineWidth = 1 + 3 * (1 - t);
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, m.y - bodyH / 2 - 10, 12 + t * 75, 0, Math.PI * 2);
+      renderCtx.stroke();
+      renderCtx.restore();
+    }
   }
+  renderCtx.globalAlpha = 1.0;
 }
 
 function drawHammers(renderCtx) {

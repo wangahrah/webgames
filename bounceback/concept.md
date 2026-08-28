@@ -35,7 +35,7 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 - A quirky monster that patrols a small area, walking back and forth.
 - Has a **star shape on its head** that glows.
 - **Attack**: Periodically stops and shoots **5 laser beams outward** in a star/radial pattern from the star on its head.
-- **Counter**: **Clicking the monster with the mouse** stuns it for ~3 seconds (it wobbles, the star dims, no lasers fire). This gives the player time to pass.
+- **Counter**: **Clicking the monster with the mouse** destroys it. It flashes white, then spins, swells and phases out over about three quarters of a second while its star bursts into sparks and a shockwave ring expands outward. It stops patrolling and stops being dangerous on the click frame — the animation is purely for show — and it stays gone until the level restarts.
 - There are 2-3 star monsters placed throughout the level.
 
 ### 3. Falling Hammers
@@ -56,7 +56,7 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 | Arrow Right / D | Roll right |
 | Arrow Up / W | Jump |
 | Spacebar | Activate shield (blocks lasers) |
-| Mouse Click | Click on Star Monster to stun it |
+| Mouse Click | Click on a Star Monster to destroy it |
 
 ## HUD (Heads-Up Display)
 - **Lives**: 3 flame icons (top-left). One extinguishes per life lost.
@@ -78,5 +78,5 @@ A side-scrolling browser game for young kids (age 6+). The player controls a rol
 ## Design Principles (for implementation)
 - **Keep it simple**: Straightforward platformer physics (gravity, ground collision, basic AABB hitboxes).
 - **Kid-friendly**: Forgiving hit detection, generous shield window, clear visual telegraphs for all hazards.
-- **Fun over difficulty**: The game should feel beatable on the first or second try. Hammers knock you back but don't kill. Shield recharges fast. Monsters can be stunned easily.
+- **Fun over difficulty**: The game should feel beatable on the first or second try. Hammers knock you back but don't kill. Shield recharges fast. Monsters die in one click.
 - **Visually clear**: High contrast between player, hazards, and background. Big, readable shapes.
