@@ -10,14 +10,20 @@
   <header>
     <h1>🐔 chicken</h1>
     <div class="modes">
-      <button class="mode active" data-mode="cluck">Cluck</button>
-      <button class="mode" data-mode="python" disabled title="coming soon">Python</button>
+      <button class="mode active" data-mode="draw" title="Draw whatever you like">🎨 Draw</button>
+      <button class="mode" data-mode="quest" aria-haspopup="true" aria-expanded="false"
+              title="Puzzles to solve with your program">🥚 Puzzles</button>
     </div>
     <div class="actions">
       <button id="run" title="Ctrl+Enter">Run</button>
       <button id="stop">Stop</button>
-      <button id="format" title="Ctrl+Shift+F">Tidy</button>
+      <button id="format" title="Ctrl+Shift+F">Tidy Up</button>
       <button id="clear" title="Reset chicken &amp; canvas (your code stays)">Reset</button>
+    </div>
+    <div id="quest-panel" class="popover" hidden>
+      <div class="popover-label">pick a puzzle</div>
+      <div id="quest-list" class="quest-list"></div>
+      <div class="popover-hint">★ get there &middot; ★ all the eggs &middot; ★ few commands</div>
     </div>
   </header>
   <div class="examples">
@@ -31,17 +37,6 @@
             title="Choose your animal">🐾 Animal ▾</button>
     <button id="save-script" class="example" title="Ctrl+S">💾 Save</button>
     <button id="my-scripts" class="example" aria-haspopup="true" aria-expanded="false">📂 My Scripts ▾</button>
-    <button id="quest-btn" class="example" aria-haspopup="true" aria-expanded="false"
-            title="Puzzles to solve with your program">🥚 Quest ▾</button>
-    <button id="quest-exit" class="example" hidden title="Back to free drawing">← Free Draw</button>
-
-    <div id="quest-panel" class="popover" hidden>
-      <div class="popover-label">pick a puzzle</div>
-      <div id="quest-list" class="quest-list"></div>
-      <div class="popover-hint">
-        ★ reach the basket · ★ collect every egg · ★ use few commands
-      </div>
-    </div>
 
     <div id="animal-panel" class="popover" hidden>
       <div class="popover-label">who do you want to be?</div>
@@ -74,7 +69,14 @@
   </div>
   <main>
     <section class="editor">
-      <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      <div id="code-banner" class="code-banner" hidden></div>
+      <div class="code-area">
+        <!-- Highlight bands live behind the textarea, which is transparent.
+             The textarea never wraps (white-space: pre), so line number maps
+             straight to a row offset. -->
+        <div id="code-marks" aria-hidden="true"></div>
+        <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
       <aside class="cheatsheet" id="cheatsheet"></aside>
     </section>
     <section class="coop">

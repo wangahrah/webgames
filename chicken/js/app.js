@@ -6,6 +6,10 @@ const runBtn = document.getElementById('run');
 const stopBtn = document.getElementById('stop');
 const clearBtn = document.getElementById('clear');
 const formatBtn = document.getElementById('format');
+const bannerEl = document.getElementById('code-banner');
+const marksEl = document.getElementById('code-marks');
+const modeDrawBtn = document.querySelector('.mode[data-mode="draw"]');
+const modeQuestBtn = document.querySelector('.mode[data-mode="quest"]');
 
 const STARTER = `# welcome! press Run (or Ctrl+Enter)
 
@@ -98,7 +102,14 @@ function buildCheatsheet() {
     const argHint = ARG_HINTS[def.arg] || '';
     return { cmd: label + argHint, desc: def.desc };
   });
-  const all = [...verbRows, { spacer: true }, ...SYNTAX_HELP];
+  // `repeat` earns the third star on every quest level, so it sits with the
+  // movement verbs at the top rather than below `peck` where nobody scrolls.
+  const MOVES = 4;
+  const all = [
+    ...verbRows.slice(0, MOVES),
+    { spacer: true }, ...SYNTAX_HELP, { spacer: true },
+    ...verbRows.slice(MOVES),
+  ];
   el.innerHTML =
     '<button class="cheatsheet-toggle" type="button" aria-expanded="true" aria-controls="cheatsheet-body">' +
       '<span class="cheatsheet-title">commands</span>' +
@@ -141,6 +152,9 @@ function persistDraft(code) {
 
 codeEl.addEventListener('input', () => {
   persistDraft(codeEl.value);
+  // Stale feedback about code you have since changed is worse than none.
+  hideBanner();
+  setMark(null);
 });
 
 function setStatus(msg, isError = false) {
@@ -148,25 +162,78 @@ function setStatus(msg, isError = false) {
   statusEl.classList.toggle('error', isError);
 }
 
+// The footer is 900px away from where a child is looking. Anything they have
+// to act on goes in the banner directly above the code instead.
+function showBanner(msg, kind) {
+  bannerEl.textContent = msg;
+  bannerEl.className = 'code-banner ' + kind;
+  bannerEl.hidden = false;
+}
+function hideBanner() { bannerEl.hidden = true; }
+
+// One highlight band behind the textarea. The textarea never wraps, so the
+// line number is just a row offset; scrolling repositions it.
+let mark = null;
+function drawMark() {
+  marksEl.innerHTML = '';
+  if (!mark) return;
+  const cs = getComputedStyle(codeEl);
+  const lh = parseFloat(cs.lineHeight);
+  const top = parseFloat(cs.paddingTop) + (mark.line - 1) * lh - codeEl.scrollTop;
+  const band = document.createElement('div');
+  band.className = 'mark ' + mark.kind;
+  band.style.height = lh + 'px';
+  band.style.top = top + 'px';
+  marksEl.appendChild(band);
+}
+function setMark(line, kind) {
+  mark = line ? { line, kind } : null;
+  drawMark();
+}
+codeEl.addEventListener('scroll', drawMark);
+
+// Put every popover under the button that opened it. Quest used to open on the
+// far left while its button sat on the far right.
+function anchorPopover(panel, btn) {
+  const host = panel.offsetParent;
+  if (!host || !btn) return;
+  const hostLeft = host.getBoundingClientRect().left;
+  const b = btn.getBoundingClientRect();
+  const w = panel.offsetWidth;
+  let left = b.left - hostLeft;
+  // A wide panel near the right edge would get shoved sideways by the clamp
+  // below and end up visibly detached from its button. Hang it from the
+  // button's right edge instead, so the two still overlap.
+  if (left + w > host.clientWidth - 8) left = (b.right - hostLeft) - w;
+  panel.style.left = Math.max(8, Math.min(left, host.clientWidth - w - 8)) + 'px';
+}
+
 function run() {
   if (Coop.isRunning()) {
     setStatus('already running — press Stop first', true);
     return;
   }
+  hideBanner();
+  setMark(null);
+
   let queue, statements;
   try {
     queue = compileCluck(codeEl.value);
     statements = cluckStatementCount(codeEl.value);
   } catch (e) {
     if (e instanceof CluckError) {
+      showBanner(`line ${e.line}: ${e.message}`, 'error');
+      setMark(e.line, 'error');
       setStatus(`line ${e.line}: ${e.message}`, true);
     } else {
+      showBanner(e.message, 'error');
       setStatus(`error: ${e.message}`, true);
       console.error(e);
     }
     return;
   }
   if (queue.length === 0) {
+    showBanner('there is nothing to run yet — write a command first!', 'retry');
     setStatus('nothing to run');
     return;
   }
@@ -175,15 +242,24 @@ function run() {
   if (Quest.isActive()) Coop.reset();
 
   setStatus(`running ${queue.length} command${queue.length === 1 ? '' : 's'}…`);
+  setRunning(true);
   Coop.play(queue, (interrupted, result) => {
+    setRunning(false);
+    setMark(null);
     if (interrupted) { setStatus('stopped'); return; }
     if (!result) {
       setStatus(`done — ran ${queue.length} command${queue.length === 1 ? '' : 's'}`);
       return;
     }
     reportQuestResult(result, statements);
-  });
+  }, (line) => setMark(line, 'running'));
 }
+
+function setRunning(on) {
+  stopBtn.disabled = !on;
+  runBtn.disabled = on;
+}
+setRunning(false);
 
 function tidy() {
   const before = codeEl.value;
@@ -224,7 +300,10 @@ stopBtn.addEventListener('click', () => Coop.stop());
 formatBtn.addEventListener('click', tidy);
 clearBtn.addEventListener('click', () => {
   Coop.stop();
+  setRunning(false);
   Coop.reset();
+  setMark(null);
+  hideBanner();
   setStatus(Quest.isActive() ? 'level reset' : 'reset');
 });
 
@@ -298,6 +377,7 @@ animalBtn.addEventListener('click', () => {
     closeAllPopovers();
     markCurrentAnimal(Coop.getDefaultAnimal());
     animalPanel.hidden = false;
+    anchorPopover(animalPanel, animalBtn);
     animalBtn.setAttribute('aria-expanded', 'true');
   }
 });
@@ -308,8 +388,6 @@ animalBtn.addEventListener('click', () => {
 // table lives in js/levels.js; everything here is the picker and the scoring
 // readout.
 
-const questBtn = document.getElementById('quest-btn');
-const questExitBtn = document.getElementById('quest-exit');
 const questPanel = document.getElementById('quest-panel');
 const questList = document.getElementById('quest-list');
 
@@ -338,28 +416,38 @@ function renderQuestList() {
   }
 }
 
+// The header switch is the mode: 🎨 Draw or 🥚 Puzzles. The button label stays
+// put — which level you are on is already written across the top of the yard.
+function markMode(questing) {
+  modeDrawBtn.classList.toggle('active', !questing);
+  modeQuestBtn.classList.toggle('active', questing);
+  document.body.classList.toggle('quest-mode', questing);
+}
+
 function enterLevel(id) {
   const lv = Quest.enter(id);
   if (!lv) return;
   Coop.stop();
+  setRunning(false);
   Coop.setLevel(lv);
   const draft = Quest.getDraft(id);
   codeEl.value = (draft !== null && draft.trim() !== '') ? draft : lv.starter;
   Quest.setDraft(id, codeEl.value);
-  questBtn.textContent = `🥚 ${lv.name} ▾`;
-  questExitBtn.hidden = false;
-  document.body.classList.add('quest-mode');
+  markMode(true);
+  setMark(null);
+  showBanner(`${lv.name} — ${lv.hint}`, 'retry');
   setStatus(`${lv.name} — ${lv.hint}`);
 }
 
 function exitQuest() {
   Coop.stop();
+  setRunning(false);
   Quest.leave();
   Coop.clearLevel();
   codeEl.value = localStorage.getItem('chicken.cluck') || STARTER;
-  questBtn.textContent = '🥚 Quest ▾';
-  questExitBtn.hidden = true;
-  document.body.classList.remove('quest-mode');
+  markMode(false);
+  setMark(null);
+  hideBanner();
   setStatus('free draw');
 }
 
@@ -380,9 +468,13 @@ function reportQuestResult(result, statements) {
     if (result.eggsTotal > 0) bits.push(`${result.eggsGot}/${result.eggsTotal} eggs`);
     bits.push(`${statements} command${statements === 1 ? '' : 's'} (par ${lv.par})`);
     if (stars < 3 && result.eggsGot >= result.eggsTotal) {
-      bits.push('— try it with fewer commands!');
+      bits.push('try it with fewer commands!');
+    } else if (stars < 3) {
+      bits.push('you missed an egg!');
     }
-    setStatus(bits.join('  ·  '));
+    const line = bits.join('   ·   ');
+    showBanner(line, 'win');
+    setStatus(line);
     renderQuestList();
     return;
   }
@@ -391,23 +483,25 @@ function reportQuestResult(result, statements) {
     caught: '🦊 the fox got you — press Run to try again',
     unfinished: '🤔 your program ended before reaching the basket',
   }[result.outcome] || 'stopped';
+  showBanner(msg, 'retry');
   setStatus(msg, result.outcome !== 'unfinished');
 }
 
-questBtn.addEventListener('click', () => {
+modeQuestBtn.addEventListener('click', () => {
   if (!questPanel.hidden) {
     closeAllPopovers();
   } else {
     closeAllPopovers();
     renderQuestList();
     questPanel.hidden = false;
-    questBtn.setAttribute('aria-expanded', 'true');
+    anchorPopover(questPanel, modeQuestBtn);
+    modeQuestBtn.setAttribute('aria-expanded', 'true');
   }
 });
 
-questExitBtn.addEventListener('click', () => {
+modeDrawBtn.addEventListener('click', () => {
   closeAllPopovers();
-  exitQuest();
+  if (Quest.isActive()) exitQuest();
 });
 
 // ---- Save / Load / Delete ---------------------------------------------------
@@ -443,7 +537,7 @@ function closeAllPopovers() {
   animalPanel.hidden = true;
   animalBtn.setAttribute('aria-expanded', 'false');
   questPanel.hidden = true;
-  questBtn.setAttribute('aria-expanded', 'false');
+  modeQuestBtn.setAttribute('aria-expanded', 'false');
   savePopover.hidden = true;
   scriptsPanel.hidden = true;
   dirtyConfirm.hidden = true;
@@ -476,6 +570,7 @@ function openSavePopover(prefill) {
   const fallback = (last && last.name) ? last.name : '';
   saveNameInput.value = prefill !== undefined ? prefill : fallback;
   savePopover.hidden = false;
+  anchorPopover(savePopover, saveBtn);
   updateSaveValidity();
   saveNameInput.focus();
   saveNameInput.select();
@@ -628,6 +723,7 @@ function openScriptsPanel() {
   closeAllPopovers();
   renderScriptsList();
   scriptsPanel.hidden = false;
+  anchorPopover(scriptsPanel, myScriptsBtn);
   myScriptsBtn.setAttribute('aria-expanded', 'true');
 }
 
@@ -671,7 +767,7 @@ dirtyCancelBtn.addEventListener('click', () => cancelEverything());
 // so clicking a preset button can open a dirty-confirm without the document
 // handler immediately tearing it down.
 document.addEventListener('click', (e) => {
-  const inside = e.target.closest('.popover, button.example, .examples-label');
+  const inside = e.target.closest('.popover, button.example, button.mode, .examples-label');
   if (!inside) cancelEverything();
 });
 

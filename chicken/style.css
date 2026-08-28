@@ -12,6 +12,7 @@ header {
   display: flex;
   align-items: center;
   gap: 1rem;
+  position: relative;
   padding: 0.75rem 1rem;
   background: #fff;
   border-bottom: 1px solid #ddd;
@@ -34,6 +35,7 @@ button {
 button:hover:not(:disabled) { background: #f0f0f0; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.mode { font-size: 1.05rem; padding: 0.5rem 1.1rem; }
 .mode.active { background: #ffd54f; border-color: #f9a825; font-weight: 600; }
 
 .examples {
@@ -43,7 +45,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   padding: 0.4rem 1rem;
   background: #fff;
   border-bottom: 1px solid #ddd;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   position: relative;
   flex-wrap: wrap;
   row-gap: 0.3rem;
@@ -54,8 +56,8 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-right: 0.2rem;
 }
 button.example {
-  padding: 0.25rem 0.7rem;
-  font-size: 0.85rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.95rem;
   border-radius: 999px;
   background: #f5f5f5;
   border-color: #ccc;
@@ -79,9 +81,13 @@ button.example:hover:not(:disabled) {
   min-width: 16rem;
   z-index: 10;
 }
+/* `left` is a fallback only -- anchorPopover() in app.js positions each panel
+   under the button that opened it, which is why Quest used to open on the far
+   left while its button sat on the far right. */
 #save-popover, #dirty-confirm, #scripts-panel, #animal-panel,
 #quest-panel { left: 1rem; }
-#quest-panel { max-width: 22rem; }
+#quest-panel { max-width: 25rem; }
+#quest-panel .popover-hint { white-space: nowrap; }
 #animal-panel { max-width: 26rem; }
 #scripts-panel { max-width: 22rem; }
 
@@ -195,8 +201,8 @@ button.example:hover:not(:disabled) {
   text-align: left;
   background: transparent;
   border: none;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 1rem;
   cursor: pointer;
   border-radius: 4px;
   white-space: nowrap;
@@ -255,27 +261,70 @@ main {
   flex-direction: column;
   border-right: 1px solid #ddd;
 }
-#code {
+/* The editor is a stack: highlight bands underneath, transparent textarea on
+   top. Both share one padding and line-height, and the textarea never wraps,
+   so a line number maps straight to a row offset. */
+.code-area {
+  position: relative;
   flex: 1;
+  min-height: 0;
+  background: #1e1e2e;
+}
+#code-marks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-left: 5px solid transparent;
+}
+.mark.error   { background: rgba(229, 57, 53, 0.30);  border-left-color: #e53935; }
+.mark.running { background: rgba(255, 213, 79, 0.20); border-left-color: #ffd54f; }
+
+#code {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   font-family: "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   padding: 1rem;
   border: none;
   outline: none;
   resize: none;
-  background: #1e1e2e;
+  background: transparent;
   color: #cdd6f4;
-  line-height: 1.55;
+  line-height: 1.7rem;
   tab-size: 2;
+  white-space: pre;
+  overflow: auto;
 }
+
+/* The one place the kid is already looking when a program fails. */
+.code-banner {
+  padding: 0.7rem 1rem;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+  border-bottom: 3px solid;
+}
+.code-banner[hidden] { display: none; }
+.code-banner.error { background: #ffebee; color: #b71c1c; border-color: #e53935; }
+.code-banner.win   { background: #e8f5e9; color: #1b5e20; border-color: #43a047; }
+.code-banner.retry { background: #fff8e1; color: #7a4a00; border-color: #f9a825; }
 
 .cheatsheet {
   background: #fff9c4;
   color: #5d4037;
   border-top: 3px solid #f9a825;
   font-family: "JetBrains Mono", Menlo, Consolas, monospace;
-  font-size: 0.82rem;
-  line-height: 1.35;
+  font-size: 0.95rem;
+  line-height: 1.45;
   display: flex;
   flex-direction: column;
   max-height: 55%;
@@ -283,7 +332,7 @@ main {
 }
 .cheatsheet-toggle {
   font-family: system-ui, sans-serif;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #6d4c41;
@@ -348,7 +397,7 @@ footer {
   background: #fff;
   border-top: 1px solid #ddd;
   font-family: "JetBrains Mono", Menlo, Consolas, monospace;
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: #555;
   min-height: 2rem;
 }
@@ -359,7 +408,7 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  max-height: 20rem;
+  max-height: 28rem;
   overflow-y: auto;
 }
 .quest-row {
@@ -368,12 +417,12 @@ footer {
   justify-content: space-between;
   gap: 0.6rem;
   width: 100%;
-  padding: 0.4rem 0.55rem;
+  padding: 0.5rem 0.65rem;
   border: 1px solid transparent;
   border-radius: 6px;
   background: #f5f5f5;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 1rem;
   text-align: left;
   cursor: pointer;
 }
@@ -383,17 +432,8 @@ footer {
 .quest-stars {
   color: #ccc;
   letter-spacing: 0.05em;
-  font-size: 0.95rem;
+  font-size: 1.15rem;
   white-space: nowrap;
 }
 .quest-stars.earned { color: #f9a825; }
 
-body.quest-mode #quest-btn {
-  background: #fff3c4;
-  border-color: #f9a825;
-  font-weight: 600;
-}
-body.quest-mode #quest-exit {
-  background: #e8f5e9;
-  border-color: #66bb6a;
-}

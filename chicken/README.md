@@ -5,6 +5,8 @@ open `index.html` in a browser, no build, no server.
 
 ## Modes
 
+The header switch picks the mode: **🎨 Draw** or **🥚 Puzzles**.
+
 - **Cluck** (live): Logo-flavored commands, one per line. Verbs come from
   `js/ops.js`; the cheat sheet in the editor pane is generated from that
   table so adding a verb auto-documents itself.
@@ -31,7 +33,30 @@ inside a program overrides it until the next Reset.
   so wandering into a puzzle never eats your free-draw code.
 
 - **Python** (planned, phase 3): Skulpt-powered real Python with a `chicken`
-  module exposing the same verbs.
+  module exposing the same verbs. There is deliberately no disabled "Python"
+  button in the meantime — a control that never works is worse than no control.
+
+## Feedback, and where it goes
+
+The audience is six to nine years old, which sets one hard rule: **anything the
+kid has to act on appears next to the code, not in the footer.**
+
+- `#code-banner` sits directly above the editor and carries parse errors,
+  quest hints, and quest outcomes. The footer keeps the low-stakes chatter
+  (saved / loaded / tidied).
+- A highlight band behind the textarea marks the line: red for the line that
+  failed to parse, amber for the line currently being walked. `coop.js` reports
+  it through the third argument to `Coop.play(queue, onDone, onLine)`; the band
+  is positioned arithmetically, which is why `#code` sets an explicit
+  `line-height` and `white-space: pre` (a wrapped line would break the mapping).
+- Both clear the moment the kid edits the code — stale feedback about code that
+  has since changed is worse than none.
+- `Run` and `Stop` swap disabled states, so neither ever invites a press that
+  does nothing.
+
+Popovers are positioned by `anchorPopover()` under the button that opened them.
+They used to be pinned to `left: 1rem` regardless, so Quest opened on the far
+left while its button sat on the far right.
 
 ## Architecture
 
@@ -116,7 +141,12 @@ After UI changes, open `index.html` and confirm:
 - [ ] Stop button interrupts mid-run cleanly
 - [ ] Ctrl+Enter runs from the editor
 - [ ] Reload preserves edited code (localStorage)
-- [ ] Typo error shows line number + "did you mean…"
+- [ ] Typo error shows a red banner above the editor, the bad line highlighted
+- [ ] Editing the code clears the banner and the highlight
+- [ ] The line being walked glows amber, and stops glowing at the end
+- [ ] Stop is greyed until you press Run; Run is greyed while running
+- [ ] Every popover opens under its own button, at any window width
+- [ ] Compass reads N / E / S / W; free draw shows a faint grid and a home cross
 - [ ] `color red` / `color blue` / `color pink` / `color teal` tints
       subsequent trail
 - [ ] `color rainbow` cycles hue per segment

@@ -122,6 +122,78 @@ const DRIVER = `
       out.push({ name: 'free-draw', got: playHere('repeat 4 [ fd 100 rt 90 ]'),
                  quest: Coop.getQuest() });
 
+      // ---- feedback the kid can actually see ----------------------------
+      var banner = document.getElementById('code-banner');
+      var marks = document.getElementById('code-marks');
+      var readMark = function () {
+        var m = marks.querySelector('.mark');
+        return m ? { cls: m.className, top: m.style.top } : null;
+      };
+
+      codeEl.value = 'fd 100\\nrt 90\\nfoward 50\\n';
+      run();
+      out.push({ name: 'typo-feedback',
+                 bannerHidden: banner.hidden, bannerText: banner.textContent,
+                 bannerCls: banner.className, mark: readMark(),
+                 moved: Coop.isRunning() });
+
+      // typing must clear feedback about code you have since changed
+      codeEl.value = 'fd 100\\n';
+      codeEl.dispatchEvent(new Event('input'));
+      out.push({ name: 'typing-clears',
+                 bannerHidden: banner.hidden, mark: readMark() });
+
+      // the running line is reported as it plays
+      var seen = [];
+      exitQuest();
+      codeEl.value = 'fd 50\\nrt 90\\nfd 50\\n';
+      Coop.play(compileCluck(codeEl.value), function () {}, function (l) { seen.push(l); });
+      window.__pump(20000);
+
+      // and again through the real Run path, watching the button and the band
+      var stopIdle = stopBtn.disabled;
+      run();
+      var stopLive = stopBtn.disabled;
+      var markDuring = readMark();
+      window.__pump(20000);
+      out.push({ name: 'running-line', seen: seen,
+                 stopIdle: stopIdle, stopLive: stopLive, markDuring: markDuring,
+                 stopAfter: stopBtn.disabled, markAfter: readMark() });
+
+      // every popover opens under the button that opened it
+      var pairs = [
+        ['animal-btn', 'animal-panel'],
+        ['my-scripts', 'scripts-panel'],
+        ['save-script', 'save-popover'],
+      ];
+      var span = function (n, b, p) {
+        return { name: n, bl: Math.round(b.left), br: Math.round(b.right),
+                 pl: Math.round(p.left), pr: Math.round(p.right) };
+      };
+      var anchors = pairs.map(function (pr) {
+        document.getElementById(pr[0]).click();
+        var a = span(pr[0], document.getElementById(pr[0]).getBoundingClientRect(),
+                            document.getElementById(pr[1]).getBoundingClientRect());
+        closeAllPopovers();
+        return a;
+      });
+      var qb = document.querySelector('.mode[data-mode=\"quest\"]');
+      qb.click();
+      anchors.push(span('quest', qb.getBoundingClientRect(),
+                        document.getElementById('quest-panel').getBoundingClientRect()));
+      closeAllPopovers();
+      out.push({ name: 'anchors', anchors: anchors });
+
+      // the header switch is the mode
+      enterLevel('fence');
+      var inQuest = { quest: qb.classList.contains('active'),
+                      draw: document.querySelector('.mode[data-mode=\"draw\"]').classList.contains('active') };
+      document.querySelector('.mode[data-mode=\"draw\"]').click();
+      var inDraw = { quest: qb.classList.contains('active'),
+                     draw: document.querySelector('.mode[data-mode=\"draw\"]').classList.contains('active'),
+                     level: Coop.getQuest() };
+      out.push({ name: 'mode-switch', inQuest: inQuest, inDraw: inDraw });
+
       document.title = 'RESULT ' + JSON.stringify(out);
     } catch (e) {
       document.title = 'JSERROR ' + e.message + ' @ ' + (e.stack || '').split('\\n')[1];
@@ -226,6 +298,66 @@ test('free draw still reports the old way — no result object', () => {
   eq(f.got.interrupted, false);
   eq(f.got.result, null);
   eq(f.quest, null);
+});
+
+console.log('\nfeedback the kid can see');
+
+test('a typo shows a banner naming the line, and does not run', () => {
+  const r = by('typo-feedback');
+  eq(r.bannerHidden, false, 'banner hidden:');
+  ok(/line 3/.test(r.bannerText), `banner said "${r.bannerText}"`);
+  ok(/forward/.test(r.bannerText), 'no did-you-mean in the banner');
+  ok(/error/.test(r.bannerCls), `banner class was "${r.bannerCls}"`);
+  eq(r.moved, false, 'the animal ran anyway:');
+});
+
+test('the offending line is highlighted, not just described', () => {
+  const m = by('typo-feedback').mark;
+  ok(m, 'no highlight band at all');
+  ok(/error/.test(m.cls), `band class was "${m.cls}"`);
+  // line 3 of a 1rem/1.7rem editor sits well below the first row
+  ok(parseFloat(m.top) > 0, `band top was ${m.top}`);
+});
+
+test('typing clears feedback about code you have since changed', () => {
+  const r = by('typing-clears');
+  eq(r.bannerHidden, true);
+  eq(r.mark, null);
+});
+
+test('the running line is reported as the animal walks', () => {
+  const r = by('running-line');
+  // …then null, which is how the editor knows to drop the highlight.
+  eq(r.seen, [1, 2, 3, null]);
+});
+
+test('the line being run is highlighted, and cleared when it ends', () => {
+  const r = by('running-line');
+  ok(r.markDuring, 'nothing was highlighted mid-run');
+  ok(/running/.test(r.markDuring.cls), `band class was "${r.markDuring.cls}"`);
+  eq(r.markAfter, null, 'highlight left behind after the run:');
+});
+
+test('Stop is dead until something is running', () => {
+  const r = by('running-line');
+  eq(r.stopIdle, true, 'stop enabled while idle:');
+  eq(r.stopLive, false, 'stop disabled while running:');
+  eq(r.stopAfter, true, 'stop still live after the run:');
+});
+
+test('every popover overlaps the button that opened it', () => {
+  for (const a of by('anchors').anchors) {
+    ok(a.pl <= a.br && a.pr >= a.bl,
+       `${a.name}: button spans ${a.bl}-${a.br}, its panel spans ${a.pl}-${a.pr}`);
+  }
+});
+
+test('the header switch is the mode', () => {
+  const r = by('mode-switch');
+  eq(r.inQuest, { quest: true, draw: false });
+  eq(r.inDraw.quest, false);
+  eq(r.inDraw.draw, true);
+  eq(r.inDraw.level, null, 'Draw did not leave the level:');
 });
 
 console.log(`\n${pass}/${pass + fail} passed`);

@@ -150,6 +150,8 @@ const Coop = (function () {
   let opFrom = null;
   let running = false;
   let onDone = null;
+  // Reports the source line of the op about to run, so the editor can glow it.
+  let onLine = null;
 
   function reset() {
     chicken.x = HOME.x; chicken.y = HOME.y; chicken.heading = HOME.heading;
@@ -332,15 +334,17 @@ const Coop = (function () {
       ctx.stroke();
     }
 
-    // Cardinal labels
+    // Cardinal labels. Letters, not degrees -- "north" is a word a six-year-old
+    // already owns, where "270°" is one more thing to decode.
     ctx.fillStyle = '#333';
-    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const labelR = r + 12;
+    const CARDINALS = { 0: 'E', 90: 'S', 180: 'W', 270: 'N' };
     for (const deg of [0, 90, 180, 270]) {
       const rad = deg * Math.PI / 180;
-      ctx.fillText(`${deg}°`, cx + labelR * Math.cos(rad), cy + labelR * Math.sin(rad));
+      ctx.fillText(CARDINALS[deg], cx + labelR * Math.cos(rad), cy + labelR * Math.sin(rad));
     }
 
     // Live heading arrow (red, tracks the chicken)
@@ -572,6 +576,27 @@ const Coop = (function () {
     ctx.restore();
   }
 
+  // Free draw is otherwise a featureless cream void: there is no way to see
+  // how far `fd 100` actually goes. One faint square per 50 units, and a cross
+  // where `home` returns to.
+  function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(139, 111, 71, 0.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = HOME.x % 50; x < W; x += 50) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+    for (let y = HOME.y % 50; y < H; y += 50) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(139, 111, 71, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(HOME.x - 8, HOME.y); ctx.lineTo(HOME.x + 8, HOME.y);
+    ctx.moveTo(HOME.x, HOME.y - 8); ctx.lineTo(HOME.x, HOME.y + 8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function render() {
     ctx.clearRect(0, 0, W, H);
     ctx.save();
@@ -579,7 +604,7 @@ const Coop = (function () {
     // the identity, so the original code path is unchanged.
     ctx.translate(world.ox, world.oy);
     ctx.scale(world.scale, world.scale);
-    if (level) drawLevelGround();
+    if (level) drawLevelGround(); else drawGrid();
     // Explicit destination size: the trail's backing store is in device
     // pixels, and we are drawing under a CSS-pixel transform.
     ctx.drawImage(trail, 0, 0, world.w, world.h);
@@ -730,6 +755,7 @@ const Coop = (function () {
   function startOp() {
     if (qi >= queue.length) { finish(false); return; }
     const op = queue[qi];
+    if (onLine) onLine(op.line);
     opFrom = snapshot();
     opStart = performance.now();
 
@@ -827,6 +853,7 @@ const Coop = (function () {
   // callers that take one parameter are unaffected.
   function finish(interrupted, result) {
     running = false;
+    if (onLine) { const lc = onLine; onLine = null; lc(null); }
     let res = result || null;
     if (level && !res) {
       // Ran off the end of the program without reaching anything.
@@ -841,11 +868,12 @@ const Coop = (function () {
     if (onDone) { const cb = onDone; onDone = null; cb(interrupted, res); }
   }
 
-  function play(q, doneCb) {
+  function play(q, doneCb, lineCb) {
     queue = q;
     qi = 0;
     running = true;
     onDone = doneCb || null;
+    onLine = lineCb || null;
     startOp();
   }
 
