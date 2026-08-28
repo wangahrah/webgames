@@ -139,6 +139,19 @@ test('gates always come with keys, and nothing starts inside one', () => {
   }
 });
 
+test('ice never sits under a wall or a gate', () => {
+  for (const l of Levels.LEVELS) {
+    if (!l.ice || l.ice.length === 0) continue;
+    for (const r of l.ice) {
+      for (const w of (l.walls || []).concat(l.gates || [])) {
+        const overlap = w.x < r.x + r.w && r.x < w.x + w.w &&
+                        w.y < r.y + r.h && r.y < w.y + w.h;
+        eq(overlap, false, `${l.id}: ice rect overlaps a wall`);
+      }
+    }
+  }
+});
+
 console.log('\nwall geometry');
 
 const WALL = { x: 100, y: 0, w: 20, h: 200 };
@@ -227,6 +240,45 @@ test('point-to-segment distance clamps to the ends', () => {
   near(Levels.pointSegmentDistance(50, 30, 0, 0, 100, 0), 30, 1e-6);
 });
 
+console.log('\nice');
+
+const POND = [{ x: 300, y: 225, w: 400, h: 300 }];
+
+test('a move ending on ice glides to the far edge', () => {
+  const out = Levels.slideDestination(0, 275, 400, 275, POND);
+  near(out.x, 700.5, 1e-6, 'exit x');
+  near(out.y, 275, 1e-6, 'exit y');
+});
+
+test('a move clearing the pond in one stride does not slide', () => {
+  eq(Levels.slideDestination(0, 275, 800, 275, POND), null);
+});
+
+test('a move ending off the ice never slides', () => {
+  eq(Levels.slideDestination(0, 100, 400, 100, POND), null);
+});
+
+test('a move ending just short of the pond does not slide', () => {
+  eq(Levels.slideDestination(0, 275, 299, 275, POND), null);
+});
+
+test('slides chain across adjacent ponds', () => {
+  const twin = [
+    { x: 300, y: 225, w: 400, h: 300 },
+    { x: 700, y: 225, w: 200, h: 300 },
+  ];
+  const out = Levels.slideDestination(0, 375, 500, 375, twin);
+  near(out.x, 900.5, 1e-6, 'chained exit x');
+  near(out.y, 375, 1e-6, 'chained exit y');
+});
+
+test('diagonal glides exit along the same slope', () => {
+  const square = [{ x: 300, y: 300, w: 400, h: 400 }];
+  const out = Levels.slideDestination(0, 0, 500, 500, square);
+  ok(out.x > 700 && out.y > 700, `exited past the far corner: ${out.x},${out.y}`);
+  near(out.y / out.x, 1, 1e-6, 'slope preserved');
+});
+
 
 console.log('\nevery level is still winnable');
 
@@ -267,9 +319,18 @@ function simulate(level, program) {
 
     const sign = op.op === 'forward' ? 1 : -1;
     const rad = heading * Math.PI / 180;
-    const total = Math.abs(op.arg);
+    const total0 = Math.abs(op.arg);
     const ux = sign * Math.cos(rad) * Math.sign(op.arg || 1);
     const uy = sign * Math.sin(rad) * Math.sign(op.arg || 1);
+
+    // Ice: a move that would end on the pond glides on to the far edge.
+    // Same direction, longer stride — collisions below still apply per step.
+    let total = total0;
+    if (level.ice && level.ice.length > 0) {
+      const slid = Levels.slideDestination(x, y, x + ux * total0, y + uy * total0,
+                                           level.ice);
+      if (slid) total = Math.hypot(slid.x - x, slid.y - y);
+    }
 
     for (let done = 0; done < total; done += STEP) {
       const len = Math.min(STEP, total - done);
@@ -381,6 +442,21 @@ test('an open gate lets you walk through the gap it left', () => {
   eq(r.outcome, 'win');
   eq(r.keys.size, lv.keys.length);
   eq(r.eggs.size, lv.eggs.length);
+});
+
+test('a move that would stop mid-pond glides to the far edge instead', () => {
+  const lv = Levels.byId('pond');
+  const r = simulate(lv, 'fd 250\n');
+  eq(r.outcome, 'unfinished');
+  near(r.x, 700.5, 0.01, 'glided to the pond edge');
+  near(r.y, 375, 0.01, 'row unchanged');
+});
+
+test('the lazy row glides you straight into the fence pocket', () => {
+  const lv = Levels.byId('pond');
+  // Glide east on the start row, then keep walking into the fence.
+  const r = simulate(lv, 'fd 250\nfd 100\n');
+  eq(r.outcome, 'bump');
 });
 
 test('a basket sitting on the start square is not won at t=0', () => {

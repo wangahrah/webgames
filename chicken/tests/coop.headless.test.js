@@ -89,6 +89,9 @@ const DRIVER = `
       enterLevel('gate');
       out.push({ name: 'gate-locked', got: playHere('fd 750\\n') });
 
+      enterLevel('pond');
+      out.push({ name: 'pond-slide-bump', got: playHere('fd 250\\nfd 100\\n') });
+
       enterLevel('fox');
       out.push({ name: 'fox-direct',
                  got: playHere('fd 375\\nlt 90\\nfd 250\\nrt 90\\nfd 375\\n') });
@@ -275,6 +278,8 @@ test('walking straight at a fence bumps it', () =>
   eq(by('fence-straight').got.result.outcome, 'bump'));
 test('walking at a locked gate reports locked, not a plain bump', () =>
   eq(by('gate-locked').got.result.outcome, 'locked'));
+test('the pond glides a mid-ice stop down to the fence (real renderer)', () =>
+  eq(by('pond-slide-bump').got.result.outcome, 'bump'));
 test('walking through a fox is caught', () =>
   eq(by('fox-direct').got.result.outcome, 'caught'));
 test('walking off the world bumps the border instead of vanishing', () =>

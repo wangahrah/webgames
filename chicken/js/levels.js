@@ -33,6 +33,11 @@ var Levels = (function () {
   //   gates   optional rects, shaped like walls but drawn as locked gates.
   //           Solid until every key has been grabbed, then gone. Bumping one
   //           reports its own "locked" outcome so the level teaches itself.
+  //   ice     optional rects of slippery pond. A move that would END on the
+  //           ice keeps gliding in its movement direction until it is off
+  //           every pond — the renderer extends its move target with
+  //           slideDestination() before animating. Walls, foxes and the
+  //           basket are still checked per frame along the glide.
   //   par     source-statement count for the third star. `repeat 4 [...]`
   //           counts as 3 statements, eight flat lines as 8 — that is the
   //           whole point of par.
@@ -222,6 +227,26 @@ var Levels = (function () {
         '# They say the key is somewhere down south...\n' +
         'fd 250\n',
     },
+    {
+      id: 'pond',
+      name: 'Slippery Pond',
+      hint: 'you cannot stop on the ice — plan where your glide ends',
+      start: { x: 125, y: 375, heading: 0 },
+      nest: { x: 875, y: 475 },
+      eggs: [
+        { x: 500, y: 275 },
+        { x: 500, y: 475 },
+      ],
+      ice: [{ x: 300, y: 225, w: 400, h: 300 }],
+      walls: [{ x: 750, y: 325, w: 50, h: 125 }],
+      foxes: [],
+      par: 10,
+      solution:
+        'lt 90\nfd 100\nrt 90\nfd 500\nrt 90\nfd 200\nrt 90\nfd 500\nlt 180\nfd 675\n',
+      starter:
+        '# Brrr! The pond is ICE. Whatever ends a move on the\n' +
+        '# pond keeps sliding to the far edge...\n',
+    },
   ];
 
   function byId(id) {
@@ -346,6 +371,54 @@ var Levels = (function () {
     return out;
   }
 
+  // ---- ice -------------------------------------------------------------------
+  //
+  // A move that ends on ice does not get to stop there: it keeps gliding in
+  // the direction it was already moving until it is off every pond. Pure
+  // geometry — the renderer extends its move target with this before
+  // animating, so the existing per-frame collision still catches walls, foxes
+  // and the basket anywhere along the glide.
+
+  const SLIDE_EPS = 0.5;
+  const MAX_SLIDE_HOPS = 10; // ponds are never adjacent x10; belt and braces
+
+  // eps shrinks the rect: with SLIDE_EPS, a move ending right at the pond
+  // edge counts as "stopped at the edge", not "stopped on the ice". Once a
+  // glide is underway we test against the true edge (eps 0), so chained
+  // ponds hand off cleanly and the animal can never come to rest on ice.
+  function pointInIce(x, y, iceRects, eps) {
+    for (const r of iceRects) {
+      if (x > r.x + eps && x < r.x + r.w - eps &&
+          y > r.y + eps && y < r.y + r.h - eps) {
+        return r;
+      }
+    }
+    return null;
+  }
+
+  // Where a move from (x0,y0) to (x1,y1) really ends on `iceRects`. Returns
+  // the extended end point, or null when no slide is needed.
+  function slideDestination(x0, y0, x1, y1, iceRects) {
+    const dx = x1 - x0, dy = y1 - y0;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return null;
+    if (!pointInIce(x1, y1, iceRects, SLIDE_EPS)) return null;
+    let px = x1, py = y1;
+    for (let hops = 0; hops < MAX_SLIDE_HOPS; hops++) {
+      const r = pointInIce(px, py, iceRects, 0);
+      if (!r) return { x: px, y: py };
+      // Distance along the move direction to just past the far edge.
+      let t = Infinity;
+      if (dx > 1e-9) t = Math.min(t, (r.x + r.w + SLIDE_EPS - px) / dx);
+      if (dx < -1e-9) t = Math.min(t, (r.x - SLIDE_EPS - px) / dx);
+      if (dy > 1e-9) t = Math.min(t, (r.y + r.h + SLIDE_EPS - py) / dy);
+      if (dy < -1e-9) t = Math.min(t, (r.y - SLIDE_EPS - py) / dy);
+      if (!Number.isFinite(t)) return null;
+      px += dx * t;
+      py += dy * t;
+    }
+    return { x: px, y: py };
+  }
+
   // ---- scoring --------------------------------------------------------------
   //
   // Reaching the basket always wins — collecting every egg is a bonus star,
@@ -367,6 +440,7 @@ var Levels = (function () {
     borderWalls, wallsOf,
     segmentRectT, segmentHitsWalls, segmentHitsCircles,
     pointSegmentDistance, eggsCollectedBy,
+    slideDestination,
     starsFor,
   };
 })();

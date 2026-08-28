@@ -490,6 +490,19 @@ const Coop = (function () {
   function drawLevelProps() {
     ctx.save();
 
+    // Ponds first: they are ground, not furniture.
+    if (level.ice) {
+      for (const r of level.ice) {
+        ctx.fillStyle = '#d8ecf7';
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.strokeStyle = '#9fc9de';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+        glyph('❄️', r.x + 30, r.y + 30, 20);
+        glyph('❄️', r.x + r.w - 30, r.y + r.h - 30, 20);
+      }
+    }
+
     for (const w of level.walls) {
       ctx.fillStyle = '#c9a271';
       ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -698,6 +711,13 @@ const Coop = (function () {
     return { ...from };
   }
 
+  // Where a move op really ends: the requested target, or — on ice levels —
+  // the far edge of the pond, when the requested target would rest on ice.
+  function moveTarget(op, from) {
+    if (op._slide) return { x: op._slide.x, y: op._slide.y, heading: from.heading };
+    return targetOf(op, from);
+  }
+
   function applyInstant(op) {
     switch (op.op) {
       case 'penup':   chicken.penDown = false; break;
@@ -849,6 +869,20 @@ const Coop = (function () {
       chicken.bubble = op.arg;
     }
 
+    // Ice: a move that would end on the pond glides on to the far edge
+    // instead. The extended target is locked in here, and the per-frame
+    // collision below still catches anything in the glide's path.
+    if (level && (op.op === 'forward' || op.op === 'back') &&
+        level.ice && level.ice.length > 0) {
+      const tgt = targetOf(op, opFrom);
+      const slid = Levels.slideDestination(opFrom.x, opFrom.y, tgt.x, tgt.y, level.ice);
+      if (slid) {
+        op._slide = slid;
+        op._dur = Math.max(50, Math.hypot(slid.x - opFrom.x, slid.y - opFrom.y) *
+                           speed.msPerUnit);
+      }
+    }
+
     if (durationFor(op) === 0) {
       applyInstant(op);
       qi++;
@@ -863,12 +897,12 @@ const Coop = (function () {
     if (!running) return;
     const op = queue[qi];
     if (!op) { finish(false); return; }
-    const dur = durationFor(op);
+    const dur = op._dur || durationFor(op);
     const elapsed = now - opStart;
     const t = dur === 0 ? 1 : Math.min(1, elapsed / dur);
 
     if (op.op === 'forward' || op.op === 'back') {
-      const tgt = targetOf(op, opFrom);
+      const tgt = moveTarget(op, opFrom);
       let newX = opFrom.x + (tgt.x - opFrom.x) * t;
       let newY = opFrom.y + (tgt.y - opFrom.y) * t;
       let outcome = null;
@@ -915,7 +949,7 @@ const Coop = (function () {
         chicken.bubble = null;
         render();
       } else {
-        const tgt = targetOf(op, opFrom);
+        const tgt = moveTarget(op, opFrom);
         chicken.x = tgt.x; chicken.y = tgt.y; chicken.heading = tgt.heading;
       }
       qi++;

@@ -31,7 +31,10 @@ inside a program overrides it until the next Reset.
   Bumping a fence stops the run gently and you press Run again. A fox ends it.
   A locked gate reports its own outcome ("find the key!") — gates are solid
   until every 🔑 on the level has been grabbed, at which point the renderer
-  rebuilds its wall list and the gate fades to a dashed outline. Progress
+  rebuilds its wall list and the gate fades to a dashed outline. Ice ponds
+  take away your stop: a move that would end on the ice glides on to the far
+  edge instead (see `slideDestination()`), which makes picking your approach
+  row a lesson in dead reckoning. Progress
   lives under `chicken.quest.v1`, and every level keeps its own draft, so
   wandering into a puzzle never eats your free-draw code.
 
@@ -257,3 +260,17 @@ chicken/
 - [ ] Reset relocks the gate and the key reappears; the key keeps its faint
       ghost once grabbed (until reset)
 - [ ] 🔑 and 🔒 render as real glyphs on the kids' machines
+
+### Ice ponds
+
+- [ ] Slippery Pond draws pale blue with ❄️ — clearly not grass
+- [ ] A move that ends mid-pond glides to the far edge in the same
+      direction, leaving one continuous trail
+- [ ] Stopping exactly at the pond edge does NOT slide (toes at the water
+      line are allowed)
+- [ ] Gliding through an egg collects it mid-slide
+- [ ] Gliding into a fence/border bumps and ends the run like any wall
+- [ ] The glide animation takes visibly longer than the requested `fd`
+      (distance-proportional, not a teleport)
+- [ ] A big single `fd` that strides the whole pond in one go does not
+      slide — you only slide when you would have STOPPED on the ice
