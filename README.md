@@ -11,6 +11,7 @@ servers. The simplest deploy is "double-click the file."
 
 - **bounceback/** — see `bounceback/concept.md` for the design.
 - **through-maze/** — single-file maze game.
+- **flapjack/** — themeable flappy clone; see `flapjack/concept.md` for the design.
 
 ## Adding a new game
 
