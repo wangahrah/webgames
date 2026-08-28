@@ -16,6 +16,7 @@ var Levels = (function () {
   const FOX_R = 30;      // fox danger radius (added to ANIMAL_R when testing)
   const NEST_R = 35;     // how close counts as "arrived"
   const EGG_R = 26;      // how close counts as "picked up"
+  const KEY_R = 26;      // how close counts as "key grabbed"
 
   // ---- levels ---------------------------------------------------------------
   //
@@ -27,6 +28,11 @@ var Levels = (function () {
   //   eggs    optional pickups; collecting every one is the second star
   //   walls   axis-aligned rects {x,y,w,h}. Bumping one stops the run gently.
   //   foxes   points. Touching one ends the run.
+  //   keys    optional points. Grabbed like eggs; when every key is held, all
+  //           `gates` open (see coop.js — the renderer owns the state).
+  //   gates   optional rects, shaped like walls but drawn as locked gates.
+  //           Solid until every key has been grabbed, then gone. Bumping one
+  //           reports its own "locked" outcome so the level teaches itself.
   //   par     source-statement count for the third star. `repeat 4 [...]`
   //           counts as 3 statements, eight flat lines as 8 — that is the
   //           whole point of par.
@@ -197,6 +203,25 @@ var Levels = (function () {
         '# two foxes, four eggs, and the basket back\n' +
         '# where you started. One lap should do it.\n',
     },
+    {
+      id: 'gate',
+      name: 'The Locked Gate',
+      hint: 'the gate is locked — somewhere a key is waiting',
+      start: { x: 125, y: 375, heading: 0 },
+      nest: { x: 875, y: 375 },
+      eggs: [{ x: 625, y: 650 }],
+      walls: [],
+      gates: [{ x: 500, y: 0, w: 50, h: 750 }],
+      keys: [{ x: 375, y: 650 }],
+      foxes: [],
+      par: 9,
+      solution:
+        'fd 250\nrt 90\nfd 275\nlt 90\nfd 250\nlt 90\nfd 275\nrt 90\nfd 250\n',
+      starter:
+        '# A purple gate! It is LOCKED.\n' +
+        '# They say the key is somewhere down south...\n' +
+        'fd 250\n',
+    },
   ];
 
   function byId(id) {
@@ -338,7 +363,7 @@ var Levels = (function () {
 
   return {
     WORLD, LEVELS, byId,
-    ANIMAL_R, FOX_R, NEST_R, EGG_R,
+    ANIMAL_R, FOX_R, NEST_R, EGG_R, KEY_R,
     borderWalls, wallsOf,
     segmentRectT, segmentHitsWalls, segmentHitsCircles,
     pointSegmentDistance, eggsCollectedBy,

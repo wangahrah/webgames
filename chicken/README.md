@@ -29,8 +29,11 @@ inside a program overrides it until the next Reset.
   90 ]` (3) beats eight flat lines (8). That is the nudge toward loops.
 
   Bumping a fence stops the run gently and you press Run again. A fox ends it.
-  Progress lives under `chicken.quest.v1`, and every level keeps its own draft,
-  so wandering into a puzzle never eats your free-draw code.
+  A locked gate reports its own outcome ("find the key!") — gates are solid
+  until every 🔑 on the level has been grabbed, at which point the renderer
+  rebuilds its wall list and the gate fades to a dashed outline. Progress
+  lives under `chicken.quest.v1`, and every level keeps its own draft, so
+  wandering into a puzzle never eats your free-draw code.
 
 - **Python** (planned, phase 3): Skulpt-powered real Python with a `chicken`
   module exposing the same verbs. There is deliberately no disabled "Python"
@@ -241,3 +244,16 @@ chicken/
 - [ ] Reset reloads the level; Stop interrupts cleanly
 - [ ] ← Free Draw returns to free drawing with the previous code intact
 - [ ] Every emoji renders as a real glyph — including 🧺 on the kids' machines
+
+### Gates and keys
+
+- [ ] The Locked Gate draws its gate purple with a 🔒 — never mistakable
+      for a wooden fence
+- [ ] Running straight at the locked gate stops with "🔒 the gate is
+      locked — find the key!" above the editor, not the plain fence message
+- [ ] Grabbing the key plays a chime, the HUD counts 🔑 1/1, and the gate
+      fades to a dashed outline mid-run
+- [ ] After unlocking, walking through the gate line just works
+- [ ] Reset relocks the gate and the key reappears; the key keeps its faint
+      ghost once grabbed (until reset)
+- [ ] 🔑 and 🔒 render as real glyphs on the kids' machines

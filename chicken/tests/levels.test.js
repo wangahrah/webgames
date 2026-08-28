@@ -95,6 +95,50 @@ test('no egg or basket is buried inside a fence', () => {
   }
 });
 
+test('optional mechanic fields are well-formed', () => {
+  for (const l of Levels.LEVELS) {
+    const pt = (p, what) =>
+      ok(p && typeof p.x === 'number' && typeof p.y === 'number', `${l.id}: ${what}`);
+    const rect = (r, what) =>
+      ok(r && typeof r.x === 'number' && typeof r.w === 'number' &&
+         typeof r.h === 'number', `${l.id}: ${what}`);
+    if (l.keys !== undefined) {
+      ok(Array.isArray(l.keys), `${l.id}: keys is an array`);
+      l.keys.forEach((k, i) => pt(k, `key ${i}`));
+    }
+    if (l.gates !== undefined) {
+      ok(Array.isArray(l.gates), `${l.id}: gates is an array`);
+      l.gates.forEach((g, i) => rect(g, `gate ${i}`));
+    }
+    if (l.ice !== undefined) {
+      ok(Array.isArray(l.ice), `${l.id}: ice is an array`);
+      l.ice.forEach((r, i) => rect(r, `ice ${i}`));
+    }
+    if (l.pads !== undefined) {
+      ok(Array.isArray(l.pads), `${l.id}: pads is an array`);
+      l.pads.forEach((p, i) => { pt(p.a, `pad ${i} a`); pt(p.b, `pad ${i} b`); });
+    }
+  }
+});
+
+test('gates always come with keys, and nothing starts inside one', () => {
+  for (const l of Levels.LEVELS) {
+    if (!l.gates || l.gates.length === 0) continue;
+    ok(l.keys && l.keys.length > 0, `${l.id}: a gate with no key is just a wall`);
+    const blocked = [l.start, l.nest, ...l.eggs, ...l.keys];
+    for (const g of l.gates) {
+      for (const p of blocked) {
+        const t = Levels.segmentRectT(p.x, p.y, p.x, p.y, g, 0);
+        eq(t === null, true, `${l.id}: (${p.x},${p.y}) sits inside a gate`);
+      }
+      for (const w of l.walls) {
+        const t = Levels.segmentRectT(w.x, w.y, w.x, w.y, g, 0);
+        eq(t === null, true, `${l.id}: a gate overlaps a wall`);
+      }
+    }
+  }
+});
+
 console.log('\nwall geometry');
 
 const WALL = { x: 100, y: 0, w: 20, h: 200 };
@@ -192,12 +236,24 @@ console.log('\nevery level is still winnable');
 // table can actually be held to.
 function simulate(level, program) {
   const queue = compileCluck(program);
-  const walls = Levels.wallsOf(level);
   const eggs = new Set();
+  const keys = new Set();
+  const keyTotal = (level.keys || []).length;
   const STEP = 5;
   let x = level.start.x, y = level.start.y, heading = level.start.heading || 0;
   let nestArmed = false;
   const nd = (px, py) => Math.hypot(px - level.nest.x, py - level.nest.y);
+
+  // Gates stand only while their key is missing — re-checked every step, the
+  // same way the renderer rebuilds its wall list the moment a key is grabbed.
+  function wallsNow() {
+    const w = Levels.wallsOf(level);
+    if (level.gates && level.gates.length > 0 && keys.size < keyTotal) {
+      return w.concat(level.gates);
+    }
+    return w;
+  }
+  const isGate = w => !!level.gates && level.gates.indexOf(w) !== -1;
 
   for (const op of queue) {
     if (op.op === 'right') { heading += op.arg; continue; }
@@ -218,6 +274,7 @@ function simulate(level, program) {
     for (let done = 0; done < total; done += STEP) {
       const len = Math.min(STEP, total - done);
       const nx = x + ux * len, ny = y + uy * len;
+      const walls = wallsNow();
 
       const wall = Levels.segmentHitsWalls(x, y, nx, ny, walls, Levels.ANIMAL_R);
       const fox = level.foxes.length
@@ -232,7 +289,7 @@ function simulate(level, program) {
       const consider = (h, outcome) => {
         if (h && (!stop || h.t < stop.t)) stop = { t: h.t, outcome };
       };
-      consider(wall, 'bump');
+      consider(wall, wall && isGate(wall.wall) ? 'locked' : 'bump');
       consider(fox, 'caught');
       consider(nest, 'win');
 
@@ -241,14 +298,18 @@ function simulate(level, program) {
       for (const i of Levels.eggsCollectedBy(x, y, ex, ey, level.eggs, eggs)) {
         eggs.add(i);
       }
+      for (const i of Levels.eggsCollectedBy(x, y, ex, ey, level.keys || [],
+                                             keys, Levels.KEY_R)) {
+        keys.add(i);
+      }
       if (!nestArmed && Math.max(nd(x, y), nd(ex, ey)) > Levels.NEST_R) {
         nestArmed = true;
       }
       x = ex; y = ey;
-      if (stop) return { outcome: stop.outcome, eggs, x, y };
+      if (stop) return { outcome: stop.outcome, eggs, keys, x, y };
     }
   }
-  return { outcome: 'unfinished', eggs, x, y };
+  return { outcome: 'unfinished', eggs, keys, x, y };
 }
 
 for (const level of Levels.LEVELS) {
@@ -297,6 +358,29 @@ test('the fence really does block', () => {
   const lv = Levels.byId('fence');
   const r = simulate(lv, 'fd 700\n');
   eq(r.outcome, 'bump');
+});
+
+test('the locked gate reports its own outcome, not a plain bump', () => {
+  const lv = Levels.byId('gate');
+  const r = simulate(lv, 'fd 750\n');
+  eq(r.outcome, 'locked');
+});
+
+test('grabbing the key opens the gate mid-program', () => {
+  const lv = Levels.byId('gate');
+  // South to the key, then straight east through where the gate stood.
+  const r = simulate(lv, 'fd 250\nrt 90\nfd 275\nlt 90\nfd 500\nlt 90\nfd 275\n');
+  eq(r.outcome, 'win');
+  eq(r.keys.size, 1);
+});
+
+test('an open gate lets you walk through the gap it left', () => {
+  const lv = Levels.byId('gate');
+  // Cross the gate line on the key run AND again on the way to the nest.
+  const r = simulate(lv, lv.solution);
+  eq(r.outcome, 'win');
+  eq(r.keys.size, lv.keys.length);
+  eq(r.eggs.size, lv.eggs.length);
 });
 
 test('a basket sitting on the start square is not won at t=0', () => {

@@ -86,6 +86,9 @@ const DRIVER = `
       enterLevel('fence');
       out.push({ name: 'fence-straight', got: playHere('fd 700\\n') });
 
+      enterLevel('gate');
+      out.push({ name: 'gate-locked', got: playHere('fd 750\\n') });
+
       enterLevel('fox');
       out.push({ name: 'fox-direct',
                  got: playHere('fd 375\\nlt 90\\nfd 250\\nrt 90\\nfd 375\\n') });
@@ -270,6 +273,8 @@ console.log('\nthings that should go wrong');
 
 test('walking straight at a fence bumps it', () =>
   eq(by('fence-straight').got.result.outcome, 'bump'));
+test('walking at a locked gate reports locked, not a plain bump', () =>
+  eq(by('gate-locked').got.result.outcome, 'locked'));
 test('walking through a fox is caught', () =>
   eq(by('fox-direct').got.result.outcome, 'caught'));
 test('walking off the world bumps the border instead of vanishing', () =>

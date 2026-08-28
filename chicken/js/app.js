@@ -481,6 +481,7 @@ function reportQuestResult(result, statements) {
   const msg = {
     bump: '🚧 you bumped into a fence — press Run to try again',
     caught: '🦊 the fox got you — press Run to try again',
+    locked: '🔒 the gate is locked — find the key first! — press Run to try again',
     unfinished: '🤔 your program ended before reaching the basket',
   }[result.outcome] || 'stopped';
   showBanner(msg, 'retry');

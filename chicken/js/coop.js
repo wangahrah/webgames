@@ -54,7 +54,7 @@ const Coop = (function () {
   let quest = null;
 
   function blankQuest() {
-    return { eggs: new Set(), nestArmed: false, outcome: null };
+    return { eggs: new Set(), keys: new Set(), nestArmed: false, outcome: null };
   }
 
   function layoutWorld() {
@@ -139,6 +139,11 @@ const Coop = (function () {
   }
   function playBump() { playTone('triangle', 180, 90, 0.14, 0.22); }
   function playCaught() { playTone('sawtooth', 420, 70, 0.5, 0.18); }
+  // A little two-note chime for the moment the last key opens the gate.
+  function playUnlock() {
+    playTone('square', 330, 660, 0.18, 0.15);
+    setTimeout(() => playTone('square', 660, 990, 0.15, 0.12), 90);
+  }
   function playWin() {
     playTone('square', 520, 780, 0.12, 0.16);
     setTimeout(() => playTone('square', 780, 1040, 0.18, 0.16), 120);
@@ -167,6 +172,8 @@ const Coop = (function () {
       // A basket you do not already stand on is live from the start; only one
       // sitting on the start square has to wait for you to leave it.
       quest.nestArmed = nestDistance(chicken.x, chicken.y) > Levels.NEST_R;
+      // Gates relock on every fresh run — the key has to be earned each time.
+      rebuildQuestWalls();
     }
     clearTrail();
     render();
@@ -505,6 +512,30 @@ const Coop = (function () {
       ctx.stroke();
     }
 
+    // Gates: the fences' fancier cousins. Solid and padlocked while their key
+    // is still out there; a faint dashed outline once open, so the passage
+    // you earned stays legible.
+    if (level.gates) {
+      for (const g of level.gates) {
+        ctx.save();
+        if (gatesOpen()) {
+          ctx.strokeStyle = 'rgba(126, 87, 194, 0.35)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([7, 7]);
+          ctx.strokeRect(g.x, g.y, g.w, g.h);
+          ctx.setLineDash([]);
+        } else {
+          ctx.fillStyle = '#b39ddb';
+          ctx.fillRect(g.x, g.y, g.w, g.h);
+          ctx.strokeStyle = '#7e57c2';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(g.x, g.y, g.w, g.h);
+          glyph('🔒', g.x + g.w / 2, g.y + g.h / 2, 30);
+        }
+        ctx.restore();
+      }
+    }
+
     // Foxes, with their danger radius shown so it is never a mystery.
     for (const f of level.foxes) {
       ctx.fillStyle = 'rgba(229, 57, 53, 0.10)';
@@ -539,6 +570,16 @@ const Coop = (function () {
       ctx.globalAlpha = 1;
     }
 
+    // Keys, same ghost rule as eggs.
+    if (level.keys) {
+      for (let i = 0; i < level.keys.length; i++) {
+        const k = level.keys[i];
+        ctx.globalAlpha = quest.keys.has(i) ? 0.22 : 1;
+        glyph('🔑', k.x, k.y, 30);
+        ctx.globalAlpha = 1;
+      }
+    }
+
     ctx.restore();
   }
 
@@ -548,6 +589,7 @@ const Coop = (function () {
     win: '🎉 you made it!',
     bump: '🚧 bumped the fence',
     caught: '🦊 the fox got you',
+    locked: '🔒 locked — find the key!',
     unfinished: '🤔 out of commands',
   };
 
@@ -555,6 +597,9 @@ const Coop = (function () {
     const total = level.eggs.length;
     const bits = [level.name];
     if (total > 0) bits.push(`🥚 ${quest.eggs.size}/${total}`);
+    if (level.keys && level.keys.length > 0) {
+      bits.push(`🔑 ${quest.keys.size}/${level.keys.length}`);
+    }
     if (quest.outcome) bits.push(OUTCOME_TEXT[quest.outcome] || '');
     const text = bits.filter(Boolean).join('   ');
 
@@ -698,6 +743,25 @@ const Coop = (function () {
     return Math.hypot(x - level.nest.x, y - level.nest.y);
   }
 
+  // Gates are walls that stand only while their key is out there somewhere.
+  // Rebuilt on level entry, on reset, and the moment the last key is grabbed.
+  function gatesOpen() {
+    return quest.keys.size >= (level.keys || []).length;
+  }
+
+  function rebuildQuestWalls() {
+    questWalls = Levels.wallsOf(level);
+    if (level.gates && level.gates.length > 0 && !gatesOpen()) {
+      questWalls = questWalls.concat(level.gates);
+    }
+  }
+
+  // A wall hit is a "locked" bump when the wall is a gate. Locked gates are
+  // the only gates that ever appear in questWalls, so membership is enough.
+  function isGate(wall) {
+    return !!level.gates && level.gates.indexOf(wall) !== -1;
+  }
+
   // Move the animal from (x0,y0) toward (x1,y1). Returns where it actually
   // got to and what stopped it, and collects any eggs brushed on the way.
   function resolveMove(x0, y0, x1, y1) {
@@ -714,7 +778,7 @@ const Coop = (function () {
     const consider = (hit, outcome) => {
       if (hit && (!stop || hit.t < stop.t)) stop = { t: hit.t, outcome };
     };
-    consider(wallHit, 'bump');
+    consider(wallHit, wallHit && isGate(wallHit.wall) ? 'locked' : 'bump');
     consider(foxHit, 'caught');
     consider(nestHit, 'win');
 
@@ -725,6 +789,20 @@ const Coop = (function () {
     for (const i of Levels.eggsCollectedBy(x0, y0, ex, ey, level.eggs, quest.eggs)) {
       quest.eggs.add(i);
       playCluck();
+    }
+
+    // Keys grab like eggs. The last one swings every gate open.
+    if (level.keys && level.keys.length > 0) {
+      for (const i of Levels.eggsCollectedBy(x0, y0, ex, ey, level.keys,
+                                             quest.keys, Levels.KEY_R)) {
+        quest.keys.add(i);
+        if (level.gates && level.gates.length > 0 && gatesOpen()) {
+          rebuildQuestWalls();
+          playUnlock();
+        } else {
+          playCluck();
+        }
+      }
     }
 
     // The basket only goes live once the animal has left it, so a level whose
@@ -909,7 +987,7 @@ const Coop = (function () {
   function setLevel(lv) {
     level = lv;
     quest = blankQuest();
-    questWalls = Levels.wallsOf(lv);
+    rebuildQuestWalls();
     HOME.x = lv.start.x;
     HOME.y = lv.start.y;
     HOME.heading = lv.start.heading || 0;
