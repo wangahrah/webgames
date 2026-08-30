@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>FLAPJACK</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="backdrop"></div>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <button id="btn-mute" class="icon-btn mute-btn" title="sound on/off" aria-label="mute"></button>
+
+  <div id="hud" class="hidden">
+    <div id="score">0</div>
+    <div id="hearts"></div>
+  </div>
+
+  <div id="hint" class="hidden">tap to flap!</div>
+
+  <div id="ui">
+    <div id="screen-title" class="screen">
+      <div class="panel">
+        <h1 class="logo">FLAPJACK</h1>
+        <div class="theme-row">
+          <button id="theme-prev" class="nav-btn" aria-label="previous theme">&#8249;</button>
+          <div class="theme-preview">
+            <div id="theme-emoji"></div>
+            <div id="theme-name"></div>
+          </div>
+          <button id="theme-next" class="nav-btn" aria-label="next theme">&#8250;</button>
+        </div>
+        <div id="pills" class="pills"></div>
+        <div id="best-line" class="best-line">Best: 0</div>
+        <button id="btn-play" class="play-btn">PLAY</button>
+      </div>
+    </div>
+
+    <div id="screen-paused" class="screen hidden">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <button id="btn-resume" class="big-btn">Resume</button>
+        <button id="btn-quit" class="big-btn">Menu</button>
+      </div>
+    </div>
+
+    <div id="screen-gameover" class="screen hidden">
+      <div class="panel">
+        <h2 id="go-title">GAME OVER</h2>
+        <div id="go-medal" class="go-medal"></div>
+        <div id="go-score" class="go-score">0</div>
+        <div id="go-best" class="best-line"></div>
+        <button id="btn-retry" class="big-btn">Retry</button>
+        <button id="btn-menu" class="big-btn">Menu</button>
+      </div>
+    </div>
+
+    <div id="banner"></div>
+    <div id="popups"></div>
+  </div>
+</div>
+
+<script src="js/themes.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/scores.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
