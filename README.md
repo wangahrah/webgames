@@ -12,6 +12,10 @@ servers. The simplest deploy is "double-click the file."
 - **bounceback/** — see `bounceback/concept.md` for the design.
 - **through-maze/** — single-file maze game.
 - **flapjack/** — themeable flappy clone; see `flapjack/concept.md` for the design.
+- **chicken/** — Logo for kids, with a chicken instead of a turtle; free draw
+  plus a 20-level programming curriculum. See `chicken/README.md`.
+- **smoosh/** — math puzzle game: fuse number tiles to hit a target. See
+  `smoosh/concept.md` for the design and the research behind it.
 
 ## Adding a new game
 

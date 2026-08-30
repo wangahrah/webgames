@@ -1,0 +1,271 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* The UA stylesheet's [hidden] { display: none } is the WEAKEST rule there is:
+   any class selector that sets display beats it. .ring and .win both set
+   display: flex, so both sat permanently on top of the board while every DOM
+   test happily reported el.hidden === true. Screenshots found this; assertions
+   never would. Do not delete. */
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex;
+  flex-direction: column;
+  background: #f6f4fb;
+  color: #2c2c2c;
+  overflow: hidden;
+}
+
+/* Accent is violet here so smoosh does not look like chicken wearing a hat.
+   Stars stay chicken-yellow: three stars should mean the same thing in both. */
+:root {
+  --accent: #7c4dff;
+  --accent-soft: #ede7ff;
+  --accent-line: #b39dff;
+  --star: #f9a825;
+  --ink: #2c2c2c;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  flex: none;
+}
+h1 { font-size: 1.4rem; font-weight: 600; }
+.modes, .actions { display: flex; gap: 0.4rem; }
+.actions { margin-left: auto; }
+
+button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s, transform 0.06s;
+}
+button:hover:not(:disabled) { background: #f0f0f0; }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover:not(:disabled) { background: #6a3bef; }
+
+.mode { font-size: 1.05rem; padding: 0.5rem 1.1rem; }
+.mode.active { background: var(--accent-soft); border-color: var(--accent-line); font-weight: 600; }
+.toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); font-weight: 600; }
+
+/* ---- popovers ---------------------------------------------------------- */
+.popover {
+  position: absolute;
+  top: 100%;
+  left: 1rem;                 /* fallback; anchorPopover() places it properly */
+  margin-top: 0.4rem;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(60,40,120,0.18);
+  padding: 0.7rem;
+  font-size: 0.9rem;
+  min-width: 18rem;
+  max-width: 24rem;
+  z-index: 20;
+}
+.popover-label { display: block; margin-bottom: 0.35rem; color: #666; font-size: 0.85rem; }
+.popover-hint { margin-top: 0.5rem; color: #888; font-size: 0.8rem; line-height: 1.35; }
+
+.puzzle-list { display: flex; flex-direction: column; gap: 0.15rem; max-height: 26rem; overflow-y: auto; }
+.puzzle-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  width: 100%; padding: 0.5rem 0.65rem;
+  border: 1px solid transparent; border-radius: 6px;
+  background: #f5f3fa; font-family: inherit; font-size: 1rem; text-align: left; cursor: pointer;
+}
+.puzzle-row:hover { background: var(--accent-soft); border-color: var(--accent-line); }
+.puzzle-row.current { background: var(--accent-soft); border-color: var(--accent); }
+.puzzle-name { color: #333; }
+.puzzle-stars { color: #ddd; letter-spacing: 0.05em; font-size: 1.1rem; white-space: nowrap; }
+.puzzle-stars .on { color: var(--star); }
+
+.endless-picks { display: flex; gap: 0.4rem; }
+.endless-pick { flex: 1; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.4rem; }
+.endless-pick span { font-size: 0.75rem; color: #888; }
+
+/* ---- goal strip --------------------------------------------------------- */
+main {
+  position: relative;   /* the win overlay and the confetti anchor here */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1rem;
+  gap: 0.75rem;
+}
+.goal { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; flex: none; }
+.goal-card {
+  display: flex; align-items: baseline; gap: 0.6rem;
+  background: #fff; border: 2px solid var(--accent-line); border-radius: 12px;
+  padding: 0.5rem 1.1rem; box-shadow: 0 2px 8px rgba(60,40,120,0.08);
+}
+.goal-label { color: #888; font-size: 0.95rem; }
+.goal-target { font-size: 2.4rem; font-weight: 700; color: var(--accent); line-height: 1; }
+.goal-name { color: #999; font-size: 0.9rem; font-style: italic; }
+
+.stars { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.star-chip {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+  background: #fff; border: 1px solid #e0dce8;
+  font-size: 0.9rem; color: #999;
+}
+.star-chip .star { color: #ddd; font-size: 1.05rem; }
+.star-chip.earned { color: var(--ink); border-color: var(--star); background: #fffaf0; }
+.star-chip.earned .star { color: var(--star); }
+
+.hint-line { margin-left: auto; color: #7a6f90; font-size: 0.9rem; max-width: 30rem; text-align: right; }
+
+/* ---- bench + tiles ------------------------------------------------------ */
+.bench-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+.bench {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 1.25rem;
+  background: #fff;
+  border: 2px dashed #ded8ec;
+  border-radius: 16px;
+  padding: 1.5rem;
+  overflow: auto;
+}
+
+.tile {
+  position: relative;
+  min-width: 8.5rem;
+  padding: 1.4rem 1.4rem 1.1rem;
+  border: 2px solid #d8d0ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 3px 0 #e6e0f2, 0 6px 16px rgba(60,40,120,0.10);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.1s, box-shadow 0.1s, border-color 0.1s;
+  font-family: inherit;
+}
+.tile:hover { transform: translateY(-3px); border-color: var(--accent-line); }
+.tile-value { font-size: 3.1rem; font-weight: 700; line-height: 1; color: var(--ink); }
+.tile-expr {
+  margin-top: 0.45rem;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem; color: #9a90b0;
+  max-width: 14rem; overflow-wrap: anywhere;
+}
+/* Bigger numbers get warmer: a cheap running sense of magnitude, no counting. */
+.tile.mag-0 { background: #f7fbff; }
+.tile.mag-1 { background: #f2f8ff; }
+.tile.mag-2 { background: #fff9ee; }
+.tile.mag-3 { background: #fff2e2; }
+.tile.mag-4 { background: #ffeadb; }
+.tile.neg .tile-value { color: #c2185b; }
+
+.tile.picked { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), 0 6px 16px rgba(60,40,120,0.16); }
+.tile.picked::after {
+  content: attr(data-order);
+  position: absolute; top: -0.55rem; left: -0.55rem;
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 0.85rem; line-height: 1.5rem; font-weight: 700;
+}
+/* A collared tile may only ever be fused with the one operator on its ribbon. */
+.tile .collar {
+  position: absolute; top: -0.7rem; right: -0.5rem;
+  padding: 0.1rem 0.5rem; border-radius: 999px;
+  background: var(--star); color: #4a3000;
+  font-size: 0.95rem; font-weight: 700;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+.tile.fresh { animation: pop 0.32s ease-out; }
+.tile.leaving { animation: gone 0.22s ease-in forwards; pointer-events: none; }
+.tile.winner { border-color: var(--star); box-shadow: 0 0 0 5px #ffe9b0, 0 8px 22px rgba(200,150,0,0.25); }
+@keyframes pop {
+  0%   { transform: scale(0.55) rotate(-6deg); opacity: 0.3; }
+  60%  { transform: scale(1.12) rotate(2deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes gone {
+  to { transform: scale(0.3); opacity: 0; }
+}
+
+/* ---- operator ring ------------------------------------------------------ */
+.ring {
+  position: absolute;
+  display: flex; gap: 0.3rem; align-items: center;
+  padding: 0.4rem;
+  background: #fff; border: 2px solid var(--accent-line); border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(60,40,120,0.22);
+  z-index: 15;
+  transform: translate(-50%, -50%);
+}
+.ring .op {
+  width: 3.2rem; height: 3.2rem; border-radius: 50%;
+  font-size: 1.6rem; font-weight: 700; padding: 0;
+  border: 1px solid #ddd6ec; background: #faf8ff; color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+}
+.ring .op:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ring .op .peek {
+  font-size: 0.7rem; font-weight: 600; color: #8a7fa8; margin-top: 0.05rem;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+}
+.ring .op:hover:not(:disabled) .peek { color: #fff; }
+.ring .op.wide { width: auto; min-width: 3.2rem; padding: 0 0.5rem; border-radius: 1.6rem; }
+.ring .swap { width: 2.4rem; height: 2.4rem; border-radius: 50%; padding: 0; font-size: 1.1rem; margin-left: 0.15rem; }
+
+/* ---- win ---------------------------------------------------------------- */
+.win {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(246,244,251,0.82);
+  z-index: 30;
+}
+.win-card {
+  background: #fff; border: 2px solid var(--star); border-radius: 18px;
+  padding: 1.6rem 2.2rem; text-align: center;
+  box-shadow: 0 14px 40px rgba(60,40,120,0.25);
+  animation: pop 0.32s ease-out;
+}
+.win-stars { font-size: 3rem; letter-spacing: 0.15em; color: var(--star); }
+.win-stars .off { color: #e3ddef; }
+.win-expr {
+  margin: 0.6rem 0 1.1rem;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 1.05rem; color: #6c6382;
+}
+.win-actions { display: flex; gap: 0.5rem; justify-content: center; }
+
+/* Confetti: absolutely positioned dots the app spawns and forgets. */
+.burst { position: absolute; inset: 0; pointer-events: none; z-index: 25; overflow: hidden; }
+.confetti {
+  position: absolute; width: 0.6rem; height: 0.9rem; border-radius: 2px;
+  animation: fall 1.5s ease-in forwards;
+}
+@keyframes fall {
+  0%   { transform: translate(0,0) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--dx), 90vh) rotate(720deg); opacity: 0; }
+}
+
+footer {
+  padding: 0.5rem 1rem;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  color: #555;
+  min-height: 2rem;
+  flex: none;
+}
+#status.warn { color: #c62828; }
+#status.good { color: #2e7d32; }
