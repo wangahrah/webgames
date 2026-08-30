@@ -89,6 +89,22 @@ var Levels = (function () {
         'fd 700\n',
     },
     {
+      id: 'backup',
+      name: 'Back It Up',
+      hint: 'the basket is behind you — bk walks backwards',
+      start: { x: 650, y: 375, heading: 0 },
+      nest: { x: 150, y: 375 },
+      eggs: [{ x: 450, y: 375 }, { x: 275, y: 375 }],
+      walls: [],
+      foxes: [],
+      par: 1,
+      solution: 'bk 500\n',
+      starter:
+        '# The basket is BEHIND you.\n' +
+        '# fd charges ahead... but bk backs up.\n' +
+        'fd 500\n',
+    },
+    {
       id: 'fence',
       name: 'The Fence',
       hint: 'you cannot go through it — go over the top',
@@ -126,6 +142,40 @@ var Levels = (function () {
         '# You could write eight lines... or use repeat.\n' +
         'fd 450\n' +
         'rt 90\n',
+    },
+    {
+      id: 'rectangle',
+      name: 'The Rectangle',
+      hint: 'the lap is a rectangle — one repeat with a longer body',
+      start: { x: 275, y: 250, heading: 0 },
+      nest: { x: 275, y: 250 },
+      eggs: [
+        { x: 750, y: 250 },
+        { x: 750, y: 600 },
+        { x: 275, y: 600 },
+      ],
+      walls: [],
+      foxes: [],
+      par: 5,
+      solution: 'repeat 2 [\n  fd 475\n  rt 90\n  fd 350\n  rt 90\n]\n',
+      starter:
+        '# The lap is a RECTANGLE this time.\n' +
+        '# One repeat can still do it — four lines inside.\n',
+    },
+    {
+      id: 'homefree',
+      name: 'Home Free',
+      hint: 'dash for the eggs, then home teleports you back',
+      start: { x: 300, y: 375, heading: 0 },
+      nest: { x: 150, y: 375 },
+      eggs: [{ x: 700, y: 375 }, { x: 700, y: 150 }],
+      walls: [],
+      foxes: [],
+      par: 5,
+      solution: 'fd 400\nlt 90\nfd 225\nhome\nbk 150\n',
+      starter:
+        '# Grab the eggs, then `home` zips you back.\n' +
+        '# The basket is a short hop west from there.\n',
     },
     {
       id: 'detour',
@@ -233,6 +283,24 @@ var Levels = (function () {
         'fd 250\n',
     },
     {
+      id: 'twokeys',
+      name: 'Two Keys',
+      hint: 'the gate wants BOTH keys before it opens',
+      start: { x: 125, y: 375, heading: 0 },
+      nest: { x: 875, y: 375 },
+      eggs: [{ x: 300, y: 375 }],
+      walls: [],
+      gates: [{ x: 475, y: 0, w: 50, h: 750 }],
+      keys: [{ x: 300, y: 125 }, { x: 300, y: 625 }],
+      foxes: [],
+      par: 9,
+      solution:
+        'fd 175\nlt 90\nfd 250\nlt 180\nfd 500\nlt 90\nfd 575\nlt 90\nfd 250\n',
+      starter:
+        '# Locked again — but TWO keys this time.\n' +
+        '# Grab both before you try the gate.\n',
+    },
+    {
       id: 'pond',
       name: 'Slippery Pond',
       hint: 'you cannot stop on the ice — plan where your glide ends',
@@ -251,6 +319,27 @@ var Levels = (function () {
       starter:
         '# Brrr! The pond is ICE. Whatever ends a move on the\n' +
         '# pond keeps sliding to the far edge...\n',
+    },
+    {
+      id: 'longslide',
+      name: 'The Long Slide',
+      hint: 'end a move ON the ice on purpose — the glide does the rest',
+      start: { x: 125, y: 375, heading: 0 },
+      nest: { x: 875, y: 375 },
+      eggs: [
+        { x: 500, y: 375 },
+        { x: 800, y: 100 },
+      ],
+      ice: [{ x: 300, y: 200, w: 400, h: 350 }],
+      walls: [],
+      foxes: [],
+      par: 9,
+      solution:
+        'fd 250\nlt 90\nfd 275\nrt 90\nfd 100\nrt 90\nfd 275\nlt 90\nfd 75\n',
+      starter:
+        '# That egg sits right in the middle of the pond.\n' +
+        '# If a move would END on the ice, you keep sliding.\n' +
+        '# Use the glide as a free ferry.\n',
     },
     {
       id: 'warp',
@@ -273,6 +362,25 @@ var Levels = (function () {
       starter:
         '# A fence with no gap — but two swirly pads.\n' +
         '# They are wormholes. Step on one and see...\n',
+    },
+    {
+      id: 'portal',
+      name: 'Pick a Portal',
+      hint: 'two pairs of pads — pick the right one',
+      start: { x: 125, y: 375, heading: 0 },
+      nest: { x: 875, y: 225 },
+      eggs: [{ x: 800, y: 225 }],
+      walls: [{ x: 475, y: 0, w: 50, h: 750 }],
+      foxes: [],
+      pads: [
+        { a: { x: 300, y: 600 }, b: { x: 650, y: 600 } },
+        { a: { x: 300, y: 375 }, b: { x: 650, y: 225 } },
+      ],
+      par: 2,
+      solution: 'fd 175\nfd 225\n',
+      starter:
+        '# TWO pairs of wormholes this time.\n' +
+        '# Step on the wrong one and the trip is very long.\n',
     },
     {
       id: 'weave',
@@ -305,6 +413,53 @@ var Levels = (function () {
         '#   end\n' +
         '# ...then just write:  hop\n' +
         'fd 225\n',
+    },
+    {
+      id: 'wordswords',
+      name: 'Words Within Words',
+      hint: 'a word can hold a whole repeat inside — call it twice',
+      start: { x: 125, y: 600, heading: 0 },
+      nest: { x: 925, y: 125 },
+      eggs: [
+        { x: 350, y: 600 },
+        { x: 750, y: 125 },
+      ],
+      walls: [
+        { x: 400, y: 0, w: 50, h: 550 },
+        { x: 600, y: 250, w: 50, h: 500 },
+      ],
+      foxes: [],
+      par: 5,
+      solution:
+        'to zoom\n  repeat 2 [\n    fd 200\n  ]\nend\n' +
+        'zoom\nlt 90\nfd 475\nrt 90\nzoom\n',
+      starter:
+        '# Two fences, two hops. Teach ONE word —\n' +
+        '# a word may even hold a `repeat` inside —\n' +
+        '# then call it by name each time you need it.\n',
+    },
+    {
+      id: 'grand',
+      name: 'The Whole Coop',
+      hint: 'gate, keys, pond — everything the farm taught you at once',
+      start: { x: 125, y: 375, heading: 0 },
+      nest: { x: 925, y: 375 },
+      eggs: [
+        { x: 250, y: 375 },
+        { x: 700, y: 450 },
+      ],
+      ice: [{ x: 550, y: 225, w: 300, h: 350 }],
+      walls: [],
+      gates: [{ x: 475, y: 0, w: 50, h: 750 }],
+      keys: [{ x: 250, y: 150 }, { x: 250, y: 600 }],
+      foxes: [],
+      par: 13,
+      solution:
+        'fd 125\nlt 90\nfd 225\nlt 180\nfd 450\nlt 90\nfd 450\nlt 90\nfd 150\n' +
+        'rt 90\nfd 225\nrt 90\nfd 150\n',
+      starter:
+        '# The finale: a locked gate, two keys, and a pond.\n' +
+        '# Grab both keys, then glide the pond like a pro.\n',
     },
   ];
 

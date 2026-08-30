@@ -234,9 +234,16 @@ chicken/
 ### Quest
 
 - [ ] 🥚 Quest opens the level list; each row shows its earned stars
+- [ ] The list shows all 20 levels in teaching order: movement, loops,
+      detours, gate/keys, ice, wormholes, then taught words, ending on
+      The Whole Coop
 - [ ] Picking a level draws the yard: fences, eggs, basket, foxes
 - [ ] The editor swaps to that level's starter; free-draw code is untouched
 - [ ] `fd 700` solves First Steps and the status bar shows ★★★
+- [ ] Back It Up: `bk` walks backwards and sweeps the eggs behind you —
+      the one-line solution beats any forward route
+- [ ] The Rectangle: a longer lap still fits one `repeat` with a
+      four-line body; the flat 16-line version earns two stars
 - [ ] Walking into a fence stops the animal *at* it with a thud — not through it
 - [ ] Run again after a bump restarts the level cleanly
 - [ ] Walking off the edge bumps the border; the animal never leaves the yard
@@ -250,6 +257,8 @@ chicken/
       dashed ring and is not won until you have left it — including after `home`
 - [ ] `clear` inside a level wipes the pen trail but not the fences
 - [ ] Resize mid-level: the yard stays proportional and nothing drifts
+- [ ] Home Free: `home` mid-program zips the animal back to its start
+      square, and the run continues from there
 - [ ] Reset reloads the level; Stop interrupts cleanly
 - [ ] ← Free Draw returns to free drawing with the previous code intact
 - [ ] Every emoji renders as a real glyph — including 🧺 on the kids' machines
@@ -263,6 +272,8 @@ chicken/
 - [ ] Grabbing the key plays a chime, the HUD counts 🔑 1/1, and the gate
       fades to a dashed outline mid-run
 - [ ] After unlocking, walking through the gate line just works
+- [ ] Two Keys: one key is not enough — the gate stays locked until
+      every key on the level has been grabbed
 - [ ] Reset relocks the gate and the key reappears; the key keeps its faint
       ghost once grabbed (until reset)
 - [ ] 🔑 and 🔒 render as real glyphs on the kids' machines
@@ -280,6 +291,8 @@ chicken/
       (distance-proportional, not a teleport)
 - [ ] A big single `fd` that strides the whole pond in one go does not
       slide — you only slide when you would have STOPPED on the ice
+- [ ] The Long Slide: ending a move on the pond on purpose glides you
+      to the far edge and sweeps the mid-pond egg along the way
 
 ### Wormholes
 
@@ -294,6 +307,8 @@ chicken/
 - [ ] A stride that emerges heading into the pond glides on landing
       (warp + ice compose)
 - [ ] The divider fence really does force the pad: no walking around it
+- [ ] Pick a Portal: two pad pairs — the wrong one is legal, just the
+      long way round; the right one lands you by the nest in two lines
 - [ ] 🌀 renders as a real glyph on the kids' machines
 
 ### Teaching words (`to … end`)
@@ -309,3 +324,7 @@ chicken/
 - [ ] Tidy Up indents word bodies like repeat blocks and is idempotent
 - [ ] A Word of Your Own: the flat route wins one star, the loop wins two,
       and the third star wants a taught word
+- [ ] Words Within Words: a taught word may hold a `repeat` in its body;
+      calling the word twice still costs one statement each
+- [ ] The Whole Coop: gate, two keys, and a pond glide all compose in one
+      yard, and the par is reachable — the finale of the teaching order
