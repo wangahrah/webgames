@@ -3,30 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>smoosh</title>
+  <title>smoosh — Mossway Valley</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>💥 smoosh</h1>
+    <h1>🌿 smoosh</h1>
     <div class="modes">
-      <button class="mode active" data-mode="puzzles" aria-haspopup="true" aria-expanded="false"
-              title="Hand-made puzzles">🧩 Puzzles</button>
+      <button class="mode active" data-mode="quest"
+              title="Mossway Valley">🌿 Valley</button>
       <button class="mode" data-mode="endless" aria-haspopup="true" aria-expanded="false"
               title="A fresh puzzle, forever">🎲 Endless</button>
     </div>
-    <div class="actions">
+    <div class="actions" id="puzzle-actions" hidden>
+      <button id="to-map" title="Back to the valley">← Valley</button>
       <button id="undo" title="Ctrl+Z">↶ Undo</button>
       <button id="restart" title="Start this puzzle over">Restart</button>
       <button id="hint" title="Show one good first move">💡 Hint</button>
       <button id="peek" class="toggle" aria-pressed="false"
               title="Show what each operator would make before you pick it">👀 Peek</button>
-    </div>
-
-    <div id="puzzle-panel" class="popover" hidden>
-      <div class="popover-label">pick a puzzle</div>
-      <div id="puzzle-list" class="puzzle-list"></div>
-      <div class="popover-hint">★ make it &middot; ★ use every tile &middot; ★ the twist</div>
     </div>
 
     <div id="endless-panel" class="popover" hidden>
@@ -42,54 +37,76 @@
   </header>
 
   <main>
-    <section class="goal">
-      <div class="goal-card">
-        <div class="goal-label">make</div>
-        <div id="target" class="goal-target">–</div>
-        <div id="level-name" class="goal-name"></div>
+    <!-- ---- the valley ------------------------------------------------- -->
+    <section id="screen-map" class="screen screen-map">
+      <div class="valley-head">
+        <div class="valley-title">Mossway Valley</div>
+        <div id="valley-bag" class="valley-bag"></div>
+        <div id="valley-tally" class="valley-tally"></div>
       </div>
-      <div class="stars">
-        <div class="star-chip" id="star-1"><span class="star">★</span><span class="star-text">make it</span></div>
-        <div class="star-chip" id="star-2"><span class="star">★</span><span class="star-text">use every tile</span></div>
-        <div class="star-chip" id="star-3"><span class="star">★</span><span class="star-text twist">–</span></div>
-      </div>
-      <div id="hint-line" class="hint-line"></div>
+      <div id="map-canvas" class="map-canvas"></div>
     </section>
 
-    <section class="bench-wrap">
-      <div id="bench" class="bench"></div>
-      <!-- The operator ring is positioned over the bench between the two
-           chosen tiles; see placeRing() in app.js. -->
-      <div id="ring" class="ring" hidden>
-        <button class="op" data-op="+">+</button>
-        <button class="op" data-op="-">−</button>
-        <button class="op" data-op="×">×</button>
-        <button class="op" data-op="÷">÷</button>
-        <button id="swap" class="swap" title="Swap which one goes first">⇄</button>
-      </div>
-      <div id="burst" class="burst" hidden></div>
+    <!-- ---- a place, with a board in it -------------------------------- -->
+    <section id="screen-puzzle" class="screen screen-puzzle" hidden>
+      <section class="goal">
+        <div class="goal-card">
+          <div class="goal-label">make</div>
+          <div id="target" class="goal-target">–</div>
+          <div id="level-name" class="goal-name"></div>
+        </div>
+        <div class="stars">
+          <div class="star-chip" id="star-1"><span class="star">★</span><span class="star-text">make it</span></div>
+          <div class="star-chip" id="star-2"><span class="star">★</span><span class="star-text">use every seed</span></div>
+          <div class="star-chip" id="star-3"><span class="star">★</span><span class="star-text twist">–</span></div>
+        </div>
+        <div id="hint-line" class="hint-line"></div>
+      </section>
+      <div id="node-blurb" class="node-blurb" hidden></div>
+
+      <section class="bench-wrap">
+        <div id="bench" class="bench"></div>
+        <!-- The operator ring is positioned over the bench between the two
+             chosen tiles; see placeRing() in app.js. -->
+        <div id="ring" class="ring" hidden>
+          <button class="op" data-op="+">+</button>
+          <button class="op" data-op="-">−</button>
+          <button class="op" data-op="×">×</button>
+          <button class="op" data-op="÷">÷</button>
+          <button id="swap" class="swap" title="Swap which one goes first">⇄</button>
+        </div>
+        <div id="burst" class="burst" hidden></div>
+      </section>
     </section>
 
+    <!-- ---- what the place does about it ------------------------------- -->
     <section id="win" class="win" hidden>
       <div class="win-card">
+        <div id="win-title" class="win-title"></div>
         <div id="win-stars" class="win-stars">★★★</div>
         <div id="win-expr" class="win-expr"></div>
+        <div id="win-tale" class="win-tale"></div>
+        <div id="win-item" class="win-item" hidden></div>
         <div class="win-actions">
           <button id="win-again">Try for more stars</button>
-          <button id="win-next" class="primary">Next puzzle →</button>
+          <button id="win-map">← Back to the valley</button>
+          <button id="win-next" class="primary">Onwards →</button>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <div id="status">pick two tiles, then an operator</div>
+    <div id="status">pick two seeds, then an operator</div>
   </footer>
 
   <script src="js/engine.js"></script>
   <script src="js/levels.js"></script>
   <script src="js/gen.js"></script>
   <script src="js/saves.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/quest.js"></script>
+  <script src="js/map.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

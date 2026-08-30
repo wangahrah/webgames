@@ -9,13 +9,27 @@
 var Saves = (function () {
   const KEY = 'smoosh.progress.v1';
 
+  // Storage is injectable so progression logic can be tested in Node without a
+  // browser. Reaching straight for localStorage is why this file had no test
+  // file for its whole first life; quest.js is not going to inherit that.
+  let store = null;
+  function backing() {
+    if (store) return store;
+    try { return localStorage; } catch (e) { return null; }   // Node, or private mode
+  }
+  function _setStorage(s) { store = s; }
+
   function read() {
-    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    const b = backing();
+    if (!b) return {};
+    try { return JSON.parse(b.getItem(KEY)) || {}; }
     catch (e) { return {}; }
   }
 
   function write(obj) {
-    try { localStorage.setItem(KEY, JSON.stringify(obj)); } catch (e) { /* private mode */ }
+    const b = backing();
+    if (!b) return;
+    try { b.setItem(KEY, JSON.stringify(obj)); } catch (e) { /* private mode */ }
   }
 
   function starsFor(id) { return read()[id] || 0; }
@@ -34,7 +48,7 @@ var Saves = (function () {
     return Object.keys(all).reduce((n, k) => n + all[k], 0);
   }
 
-  return { read, starsFor, record, total, KEY };
+  return { read, starsFor, record, total, KEY, _setStorage };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = Saves;

@@ -62,14 +62,43 @@ through the *same numbers* by a different road, which is more arithmetic per
 minute than any amount of fresh puzzles, and it never once looks like
 repetition.
 
+## The valley
+
+A good mechanic in a list of levels is a worksheet with better manners. The
+puzzles were never the problem; having no reason to do the next one was.
+
+So: **Mossway Valley**, a place gone quiet and overgrown that you open back up
+one puzzle at a time. A gate wants 12. A bird wants 14 berries. A sunken
+stepping stone wants 12 to come back up, and under it is the first tool. The
+arithmetic did not change at all — what changed is that the answer now buys
+something, and the map behind you fills in.
+
+Three things this buys that a level list does not:
+
+- **A reason to do the next one.** The next place is visibly there, greyed, with
+  a name you cannot read yet.
+- **A reason to go back for stars 2 and 3.** Region gates open on a star TOTAL,
+  never on any single place. Playing well opens the valley sooner; playing
+  badly still lets you walk on. Nothing is ever a wall.
+- **Somewhere for a new mechanic to come from.** A rule that arrives as a
+  paragraph of instructions is homework. The same rule arriving as a pair of
+  shears you found in a drowned toolshed is a present.
+
+Four regions, twenty places, one new idea per region, each introduced on its own
+and then compounded: the fuse alone, then vine-bound seeds, then gates with two
+locks and a tool that halves, then a stretch of old stone where numbers may go
+below zero and everything is asked for at once. The shape is stolen wholesale
+from chicken's twenty-level curriculum, which worked.
+
 ## Two modes
 
-- **Puzzles** — fourteen hand-made levels, ramping. Every target is chosen
-  from the intersection of "reachable by some subset" (so star 1 is easy) and
-  "reachable using every tile with the twist held" (so stars 2 and 3 are
-  live). Both halves are checked by brute force in the test suite.
+- **Valley** — the quest above. Every target is chosen from the intersection of
+  "reachable by some subset" (so star 1 is easy) and "reachable using every tile
+  with the twist held" (so stars 2 and 3 are live). Both halves are checked by
+  brute force in the test suite.
 - **Endless** — generated, three difficulties, built backwards from the answer
-  so it is impossible to deal an unsolvable board.
+  so it is impossible to deal an unsolvable board. Deliberately outside the
+  story: no stars are recorded, and nothing is at stake.
 
 ## Deliberately absent
 

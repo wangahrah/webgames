@@ -1,15 +1,18 @@
-// Wiring: level -> Engine state -> DOM, and the handful of buttons around it.
-// All the rules live in engine.js; this file only decides what the kid sees.
+// Wiring: a place -> a board -> Engine state -> DOM, and the handful of buttons
+// around it. All the rules live in engine.js, all the geography in world.js,
+// all the progress in quest.js; this file only decides what the kid sees.
 
 (function () {
   const $ = (id) => document.getElementById(id);
   const benchEl = $('bench'), ringEl = $('ring'), burstEl = $('burst');
   const targetEl = $('target'), levelNameEl = $('level-name'), hintEl = $('hint-line');
-  const statusEl = $('status');
+  const blurbEl = $('node-blurb'), statusEl = $('status');
   const winEl = $('win'), winStarsEl = $('win-stars'), winExprEl = $('win-expr');
-  const puzzlesBtn = document.querySelector('.mode[data-mode="puzzles"]');
+  const mapEl = $('map-canvas'), actionsEl = $('puzzle-actions');
+  const questBtn = document.querySelector('.mode[data-mode="quest"]');
   const endlessBtn = document.querySelector('.mode[data-mode="endless"]');
-  const puzzlePanel = $('puzzle-panel'), endlessPanel = $('endless-panel');
+  const endlessPanel = $('endless-panel');
+  const SCREENS = { map: $('screen-map'), puzzle: $('screen-puzzle') };
 
   // ---- session state ------------------------------------------------------
   //
@@ -17,21 +20,98 @@
   // a pop -- no replay, no inverse operations, nothing to get subtly wrong.
 
   const S = {
+    screen: 'map',
+    node: null,          // the Quest.list() row we are standing in, or null for endless
     level: null,
     state: null,
     history: [],
     picked: [],          // tile ids, in the order tapped: [left, right]
     peek: false,
-    mode: 'puzzles',
+    mode: 'quest',
     difficulty: 'medium',
     seed: 1,
     popped: null,        // the fused tile we have already animated
     celebrated: 0,       // best star count already celebrated for this attempt
+    fresh: null,         // node the last win just opened, so the map can point at it
   };
 
-  // ---- loading a puzzle ---------------------------------------------------
+  // ---- screens ------------------------------------------------------------
+  //
+  // Three of them and one function to swap between: map, puzzle, and the win
+  // card that floats over whichever is showing. The [hidden] attribute does the
+  // work, which is only safe because style.css forces it to win the cascade --
+  // both overlays in this game once sat permanently over the board while every
+  // assertion cheerfully reported hidden === true.
 
-  function load(level) {
+  function showScreen(name) {
+    S.screen = name;
+    for (const k of Object.keys(SCREENS)) SCREENS[k].hidden = (k !== name);
+    actionsEl.hidden = (name !== 'puzzle');
+    if (name === 'map') { hideRing(); winEl.hidden = true; renderMap(); }
+  }
+
+  // ---- the valley ---------------------------------------------------------
+
+  function renderMap() {
+    const rows = Quest.list();
+    Valley.render(mapEl, rows, {
+      onPick: pickNode,
+      current: S.node ? S.node.node.id : null,
+      fresh: S.fresh,
+    });
+
+    const stars = rows.reduce((n, r) => n + r.stars, 0);
+    const built = rows.filter((r) => r.built);
+    const awake = rows.filter((r) => r.stars > 0).length;
+    $('valley-tally').textContent =
+      '★ ' + stars + ' of ' + (built.length * 3) + '  ·  ' +
+      awake + ' of ' + built.length + ' places awake';
+
+    const bag = $('valley-bag');
+    bag.innerHTML = '';
+    for (const item of Quest.items()) {
+      const chip = document.createElement('span');
+      chip.className = 'bag-item';
+      chip.title = item.what;
+      chip.textContent = item.glyph + ' ' + item.name;
+      bag.appendChild(chip);
+    }
+  }
+
+  // A locked place says WHY it is locked. "Nope" is the least useful thing a
+  // map can tell a kid; "the Hollow opens at 3 stars, you have 2" is a plan.
+  function pickNode(row) {
+    if (!row.unlocked) {
+      if (!Quest.regionOpen(row.node.region)) {
+        say(row.region.name + ' opens at ' + row.region.gateStars +
+            ' stars — you have ' + Quest.totalStars(), 'warn');
+      } else {
+        const missing = (row.node.requires || [])
+          .filter((id) => Quest.starsFor(id) < 1)
+          .map((id) => (World.nodeById(id) || {}).name)
+          .filter(Boolean);
+        say('first: ' + missing.join(', '), 'warn');
+      }
+      return;
+    }
+    if (!row.built) {
+      say('this part of the valley is still growing — nothing here yet');
+      return;
+    }
+    openNode(row);
+  }
+
+  function openNode(row) {
+    S.fresh = null;
+    setMode('quest');
+    load(Levels.byId(row.node.level), row);
+    showScreen('puzzle');
+  }
+
+  // ---- loading a board ----------------------------------------------------
+
+  function load(level, row) {
+    S.node = row || null;
     S.level = level;
     S.state = Engine.newState(level);
     S.history = [];
@@ -41,7 +121,7 @@
     winEl.hidden = true;
     hideRing();
     render();
-    say('pick two tiles, then an operator');
+    say('pick two seeds, then an operator');
   }
 
   function push(next) {
@@ -65,9 +145,13 @@
   function render() {
     const st = Engine.status(S.state);
 
-    targetEl.textContent = Engine.goalText(S.state.goal);
-    levelNameEl.textContent = S.level.name;
+    // goalsText, not goalText: a bog gate can carry two locks, and the single
+    // target is just the list-of-one case.
+    targetEl.textContent = Engine.goalsText(S.state);
+    levelNameEl.textContent = S.node ? S.node.node.name : S.level.name;
     hintEl.textContent = S.level.hint || '';
+    blurbEl.textContent = S.node ? S.node.node.blurb : '';
+    blurbEl.hidden = !S.node;
 
     // Stars. Chip 3 always names the twist, so the kid can aim at it from the
     // first move instead of discovering it after winning.
@@ -88,7 +172,7 @@
       // every click, and re-triggering the animation because a tile happens to
       // still be the most recent one makes the board twitch under the kid.
       if (t.id === S.state.last && S.popped !== S.state.last) el.classList.add('fresh');
-      if (st.solved && t.id === st.winnerId) el.classList.add('winner');
+      if (st.solved && st.winnerIds.indexOf(t.id) >= 0) el.classList.add('winner');
       const pick = S.picked.indexOf(t.id);
       if (pick >= 0) { el.classList.add('picked'); el.dataset.order = String(pick + 1); }
       el.dataset.id = t.id;
@@ -107,7 +191,7 @@
       if (t.collar) {
         const c = document.createElement('div');
         c.className = 'collar';
-        c.title = 'this tile can only be fused with ' + t.collar;
+        c.title = 'this seed is vine-bound: it only comes loose with ' + t.collar;
         c.textContent = t.collar;
         el.appendChild(c);
       }
@@ -174,9 +258,9 @@
   }
 
   function reasonText(why, op) {
-    if (why === 'collar') return 'a collared tile only fuses with its own operator';
+    if (why === 'collar') return 'a vine-bound seed only comes loose with its own operator';
     if (why === 'not exact') return 'that division would not come out even';
-    if (why === 'goes negative') return 'this puzzle does not allow numbers below zero';
+    if (why === 'goes negative') return 'this place does not allow numbers below zero';
     return 'not allowed here';
   }
 
@@ -228,16 +312,35 @@
   // ---- winning ------------------------------------------------------------
   //
   // The overlay only interrupts when the kid has just BEATEN their best score
-  // for this attempt. Hitting the target with tiles left over pops it once at
+  // for this attempt. Hitting the target with seeds left over pops it once at
   // one star; going back for the rest pops it again at three. Re-winning the
   // same score in silence keeps experimentation cheap.
 
   function checkWin() {
     const st = Engine.status(S.state);
     if (!st.solved) return;
-    if (!S.level.generated) Saves.record(S.level.id, st.stars);
+
+    if (S.node) {
+      // Which places did this just open? The map points at them afterwards,
+      // because the reward for solving something is being shown where to go.
+      const before = Quest.list().filter((r) => r.unlocked).map((r) => r.node.id);
+      Quest.record(S.node.node.id, st.stars);
+      const opened = Quest.list()
+        .filter((r) => r.unlocked && before.indexOf(r.node.id) < 0);
+      S.fresh = opened.length ? opened[0].node.id : null;
+    } else if (!S.level.generated) {
+      Saves.record(S.level.id, st.stars);
+    }
+
     if (st.stars <= S.celebrated) return;
     S.celebrated = st.stars;
+    showWin(st);
+  }
+
+  function showWin(st) {
+    const node = S.node ? S.node.node : null;
+
+    $('win-title').textContent = node ? node.name : S.level.name;
 
     winStarsEl.innerHTML = '';
     for (let i = 0; i < 3; i++) {
@@ -246,18 +349,32 @@
       if (i >= st.stars) s.className = 'off';
       winStarsEl.appendChild(s);
     }
+
     const winner = S.state.tiles.find((t) => t.id === st.winnerId);
     winExprEl.textContent = winner ? winner.expr + '  =  ' + winner.v : '';
+    $('win-tale').textContent = node ? node.onSolve : '';
+
+    const itemEl = $('win-item');
+    const item = node && node.gives ? World.itemById(node.gives) : null;
+    itemEl.hidden = !item;
+    if (item) itemEl.textContent = item.glyph + '  ' + item.name + ' — ' + item.what;
+
+    const next = node ? Quest.nodeAfter(node.id) : true;
     $('win-again').hidden = st.stars === 3;
+    $('win-map').hidden = !node;
+    $('win-next').hidden = !next;
+    $('win-next').textContent = node ? 'Onwards →' : 'Next puzzle →';
+
     winEl.hidden = false;
     confetti(st.stars);
-    say(st.stars === 3 ? 'three stars. Nothing left to squeeze out of that one.' : 'solved — but there are stars left on the table', 'good');
+    say(st.stars === 3 ? 'three stars. Nothing left to squeeze out of that one.'
+                       : 'solved — but there are stars left on the table', 'good');
   }
 
   function confetti(n) {
     burstEl.hidden = false;
     burstEl.innerHTML = '';
-    const colors = ['#7c4dff', '#f9a825', '#26c6da', '#ef5350', '#66bb6a'];
+    const colors = ['#7cb342', '#f9a825', '#26a69a', '#8d6e63', '#aed581'];
     for (let i = 0; i < 24 * n; i++) {
       const d = document.createElement('div');
       d.className = 'confetti';
@@ -284,7 +401,8 @@
     say('undone. Nothing is ever wasted here.');
   }
 
-  $('restart').addEventListener('click', () => load(S.level));
+  $('restart').addEventListener('click', () => load(S.level, S.node));
+  $('to-map').addEventListener('click', () => showScreen('map'));
 
   $('peek').addEventListener('click', () => {
     S.peek = !S.peek;
@@ -302,19 +420,25 @@
              || Engine.solve(S.state, { budget: 600000 });
     if (!sol || !sol.length) { say('no way home from here — try Undo', 'warn'); return; }
     const m = sol[0];
+    if (m.cut !== undefined) { say('try cutting the ' + m.cut + ' in half … the rest is yours'); return; }
     say('try ' + m.a + ' ' + Engine.opGlyph(m.op) + ' ' + m.b + ' … the rest is yours');
   });
 
   $('win-again').addEventListener('click', () => { winEl.hidden = true; });
-  $('win-next').addEventListener('click', nextPuzzle);
+  $('win-map').addEventListener('click', () => showScreen('map'));
+  $('win-next').addEventListener('click', onwards);
 
-  function nextPuzzle() {
+  function onwards() {
     winEl.hidden = true;
-    if (S.mode === 'endless') { S.seed = (S.seed + 1) >>> 0; load(Gen.puzzle(S.difficulty, S.seed)); return; }
-    const i = Levels.LEVELS.findIndex((l) => l.id === S.level.id);
-    const next = Levels.LEVELS[i + 1];
-    if (next) load(next);
-    else { say('that was the last hand-made one. Endless is that way →', 'good'); openPanel(endlessPanel, endlessBtn); }
+    if (!S.node) {
+      S.seed = (S.seed + 1) >>> 0;
+      load(Gen.puzzle(S.difficulty, S.seed), null);
+      return;
+    }
+    const next = Quest.nodeAfter(S.node.node.id);
+    if (next) { openNode(next); return; }
+    say('nothing further built that way yet — back to the valley', 'good');
+    showScreen('map');
   }
 
   // ---- mode + pickers -----------------------------------------------------
@@ -335,16 +459,14 @@
   }
 
   function closePanels() {
-    for (const [p, b] of [[puzzlePanel, puzzlesBtn], [endlessPanel, endlessBtn]]) {
-      p.hidden = true;
-      b.setAttribute('aria-expanded', 'false');
-    }
+    endlessPanel.hidden = true;
+    endlessBtn.setAttribute('aria-expanded', 'false');
   }
 
-  puzzlesBtn.addEventListener('click', () => {
-    if (!puzzlePanel.hidden) { closePanels(); return; }
-    renderPuzzleList();
-    openPanel(puzzlePanel, puzzlesBtn);
+  questBtn.addEventListener('click', () => {
+    closePanels();
+    setMode('quest');
+    showScreen('map');
   });
 
   endlessBtn.addEventListener('click', () => {
@@ -354,33 +476,8 @@
 
   function setMode(mode) {
     S.mode = mode;
-    puzzlesBtn.classList.toggle('active', mode === 'puzzles');
+    questBtn.classList.toggle('active', mode === 'quest');
     endlessBtn.classList.toggle('active', mode === 'endless');
-  }
-
-  function renderPuzzleList() {
-    const list = $('puzzle-list');
-    list.innerHTML = '';
-    for (const l of Levels.LEVELS) {
-      const got = Saves.starsFor(l.id);
-      const row = document.createElement('button');
-      row.className = 'puzzle-row' + (S.level && S.level.id === l.id ? ' current' : '');
-      const name = document.createElement('span');
-      name.className = 'puzzle-name';
-      name.textContent = l.name;
-      const stars = document.createElement('span');
-      stars.className = 'puzzle-stars';
-      stars.innerHTML = '';
-      for (let i = 0; i < 3; i++) {
-        const s = document.createElement('span');
-        s.textContent = '★';
-        if (i < got) s.className = 'on';
-        stars.appendChild(s);
-      }
-      row.appendChild(name); row.appendChild(stars);
-      row.addEventListener('click', () => { setMode('puzzles'); closePanels(); load(l); });
-      list.appendChild(row);
-    }
   }
 
   endlessPanel.addEventListener('click', (e) => {
@@ -391,7 +488,9 @@
     setMode('endless');
     closePanels();
     const p = Gen.puzzle(S.difficulty, S.seed);
-    if (p) load(p); else say('the generator gave up. Try again.', 'warn');
+    if (!p) { say('the generator gave up. Try again.', 'warn'); return; }
+    load(p, null);
+    showScreen('puzzle');
   });
 
   document.addEventListener('click', (e) => {
@@ -402,22 +501,29 @@
   // ---- keyboard -----------------------------------------------------------
 
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { clearPickSafely(); closePanels(); winEl.hidden = true; return; }
+    if (S.screen !== 'puzzle') return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
-    if (e.key === 'Escape') { clearPick(); closePanels(); winEl.hidden = true; return; }
     if (S.picked.length !== 2) return;
     const map = { '+': '+', '-': '-', '*': '×', 'x': '×', '/': '÷' };
     const op = map[e.key];
     if (op) { e.preventDefault(); doMerge(op); }
   });
 
+  function clearPickSafely() { if (S.screen === 'puzzle') clearPick(); }
+
   window.addEventListener('resize', () => { if (!ringEl.hidden) placeRing(); });
 
   // ---- go -----------------------------------------------------------------
   //
-  // Open on the first level that is not yet three-starred, so a returning kid
-  // lands on their edge instead of on level one.
+  // Open on the valley, always. The map IS the front door: a kid should see
+  // where they are before they see a board, and a returning kid should see how
+  // much of the place they have already woken up.
 
-  const firstUnfinished = Levels.LEVELS.find((l) => Saves.starsFor(l.id) < 3) || Levels.LEVELS[0];
-  setMode('puzzles');
-  load(firstUnfinished);
+  setMode('quest');
+  const here = Quest.nextNode();
+  S.node = null;
+  S.fresh = here ? here.node.id : null;
+  showScreen('map');
+  say('tap a place on the map');
 })();

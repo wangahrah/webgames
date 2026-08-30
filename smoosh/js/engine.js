@@ -76,12 +76,15 @@ var Engine = (function () {
     return {
       tiles,
       goal: level.goal,
+      goals: level.goals || null, // two-lock gates; see goalsOf() below
       par: level.par,
       neg: !!level.neg,
+      shears: level.shears || 0,  // how many halvings this level grants
       twist: level.twist || null,
       moves: 0,
-      log: [],                  // every move made, in order -- the twist judges this
-      last: null,               // id of the tile the most recent merge produced
+      log: [],                  // every FUSE made, in order -- the twist judges this
+      cuts: [],                 // every halving made; deliberately not in log
+      last: null,               // id of the tile the most recent move produced
     };
   }
 
@@ -155,6 +158,90 @@ var Engine = (function () {
     return '≤ ' + goal.atMost;
   }
 
+  // A gate may carry more than one lock: goals: [{value:12},{value:20}] means
+  // two tiles must show those numbers AT THE SAME TIME, which turns the board
+  // from "converge on one number" into "keep two plates spinning" without a
+  // single new rule about arithmetic. `goal` stays the one-lock shorthand, and
+  // everything downstream reads through goalsOf(), so the old single-goal path
+  // is literally the new path with a list of one.
+  function goalsOf(state) {
+    if (state.goals && state.goals.length) return state.goals;
+    return state.goal ? [state.goal] : [];
+  }
+
+  // Can every lock be satisfied by a DIFFERENT tile? Greedy matching is wrong
+  // here: with two locks, a tile that fits both can be claimed by the one that
+  // had another option, and the board reads as unsolved while a solution is
+  // sitting on it. So walk the assignments. Returns the winning tile ids in
+  // goal order, or null.
+  function matchGoals(goals, tiles, used) {
+    if (!goals.length) return [];
+    const u = used || new Set();
+    const g = goals[0], rest = goals.slice(1);
+    for (const t of tiles) {
+      if (u.has(t.id) || !goalHit(g, t.v)) continue;
+      u.add(t.id);
+      const tail = matchGoals(rest, tiles, u);
+      if (tail) return [t.id].concat(tail);
+      u.delete(t.id);
+    }
+    return null;
+  }
+
+  function goalsText(state) {
+    return goalsOf(state).map(goalText).join('  &  ') || '?';
+  }
+
+  // ---- the Sap Shears -------------------------------------------------------
+  //
+  // Cut one seed cleanly in half. Halving, and not "split into any a + b", and
+  // that is deliberate twice over. It is ONE option per tile instead of dozens,
+  // so the solver can still walk a board exhaustively -- which is the thing
+  // that proves every authored level winnable. And a greyed-out shears teaches
+  // evenness exactly the way the greyed-out divide already teaches
+  // divisibility: by refusing, silently, at the moment it matters.
+  //
+  // Cuts are recorded in state.cuts, NOT in state.log. Twists are a vocabulary
+  // about operators -- "no minus", "finish on a divide", "every step bigger" --
+  // and quietly feeding them a move that has no operator is how you get a
+  // `grow` twist that can never be met for reasons nobody can see on screen.
+
+  function canSplit(state, id) {
+    if (!state.shears || state.shears < 1) return { ok: false, why: 'no shears' };
+    const t = tileById(state, id);
+    if (!t) return { ok: false, why: 'gone' };
+    if (t.collar) return { ok: false, why: 'collar' };   // vines hold the seed shut
+    if (t.v === 0 || t.v % 2 !== 0) return { ok: false, why: 'not even' };
+    return { ok: true, v: t.v / 2 };
+  }
+
+  // A cut seed forgets its expression. Two halves of 24 are two 12s, not two
+  // copies of the sum that made it -- claiming otherwise would print an
+  // expression that does not evaluate to the number above it.
+  function split(state, id) {
+    const check = canSplit(state, id);
+    if (!check.ok) return null;
+    const from = tileById(state, id).v;
+    const half = check.v;
+    const mk = (side) => ({
+      id: 'c' + state.moves + '_' + id + '_' + side,
+      v: half, expr: String(half), prec: 0, collar: null, leaf: true,
+    });
+    const a = mk('a'), b = mk('b');
+    const tiles = [];
+    for (const t of state.tiles) {
+      if (t.id === id) { tiles.push(a); tiles.push(b); }
+      else tiles.push(t);
+    }
+    return Object.assign({}, state, {
+      tiles,
+      shears: state.shears - 1,
+      cuts: (state.cuts || []).concat([{ from, to: half }]),
+      moves: state.moves + 1,
+      last: a.id,
+    });
+  }
+
   // ---- status + scoring -----------------------------------------------------
   //
   // Three stars, the same shape as chicken's quest mode:
@@ -210,9 +297,12 @@ var Engine = (function () {
   }
 
   function status(state) {
-    const winner = state.tiles.find((t) => goalHit(state.goal, t.v)) || null;
-    const solved = !!winner;
-    const usedAll = state.tiles.length === 1;
+    const goals = goalsOf(state);
+    const winners = goals.length ? matchGoals(goals, state.tiles) : null;
+    const solved = !!winners;
+    // "Nothing left over" means one tile per lock, not one tile full stop --
+    // a two-lock gate cannot be satisfied by a board of one.
+    const usedAll = state.tiles.length === Math.max(1, goals.length);
     const twistOk = twistMet(state.twist, state.log);
     let stars = 0;
     if (solved) {
@@ -222,7 +312,8 @@ var Engine = (function () {
     }
     return {
       solved,
-      winnerId: winner ? winner.id : null,
+      winnerId: solved ? winners[0] : null,
+      winnerIds: solved ? winners : [],
       stars,
       usedAll,
       twistOk,
@@ -233,6 +324,8 @@ var Engine = (function () {
   // "Stuck" is not a loss -- there is no loss. It just means every remaining
   // pairing is illegal, and the honest thing is to say so and point at Undo.
   function anyMoveLeft(state) {
+    // A pair of shears is a move even on a board of one.
+    if (state.shears > 0 && state.tiles.some((t) => canSplit(state, t.id).ok)) return true;
     if (state.tiles.length < 2) return false;
     for (let i = 0; i < state.tiles.length; i++) {
       for (let j = 0; j < state.tiles.length; j++) {
@@ -274,8 +367,12 @@ var Engine = (function () {
     let best = null;
     const seen = new Set();
 
+    // The memo key must carry the shears too. Two boards showing the same
+    // numbers are not interchangeable if one has already spent its cut -- the
+    // same trap the twist memo fell into, one field along.
     function key(s) {
-      return s.tiles.map((t) => t.v + (t.collar || '')).sort().join(',');
+      return s.tiles.map((t) => t.v + (t.collar || '')).sort().join(',') +
+             '#' + (s.shears || 0);
     }
 
     function walk(s, path) {
@@ -286,7 +383,6 @@ var Engine = (function () {
         best = path.slice();
         return;
       }
-      if (s.tiles.length < 2) return;
       // Memo only when the goal depends on the tiles alone. A twist judges the
       // move LOG, so two boards with identical tiles are not interchangeable
       // once a twist is in play -- one may have spent the banned operator and
@@ -298,6 +394,18 @@ var Engine = (function () {
         if (seen.has(k)) return;
         seen.add(k);
       }
+      // Cuts come first, and before the two-tile guard: a lone tile can still
+      // be halved into a pair worth fusing.
+      if (s.shears > 0) {
+        for (const t of s.tiles) {
+          const next = split(s, t.id);
+          if (!next) continue;
+          path.push({ cut: t.v, v: t.v / 2 });
+          walk(next, path);
+          path.pop();
+        }
+      }
+      if (s.tiles.length < 2) return;
       for (let i = 0; i < s.tiles.length; i++) {
         for (let j = 0; j < s.tiles.length; j++) {
           if (i === j) continue;
@@ -323,7 +431,8 @@ var Engine = (function () {
     OPS, PREC,
     apply, combineExpr,
     newState, tileById, legal, merge,
-    goalHit, goalText,
+    canSplit, split,
+    goalHit, goalText, goalsOf, goalsText, matchGoals,
     TWISTS, twistText, twistMet, opGlyph,
     status, anyMoveLeft, optionsFor,
     solve,

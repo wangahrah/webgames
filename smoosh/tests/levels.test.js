@@ -59,34 +59,52 @@ test('collars only ever name a real operator', () => {
 
 console.log('solvability');
 
+// Walk a solver route back through the real engine. The solver could in
+// principle agree with itself and still be wrong about the rules, so nothing
+// is believed until the engine itself has re-made every move.
+function replay(level, sol, label) {
+  let s = Engine.newState(level);
+  for (const m of sol) {
+    if (m.cut !== undefined) {                       // a Sap Shears halving
+      const t = s.tiles.find((x) => x.v === m.cut);
+      ok(t, label + ': replay lost the tile to cut');
+      const next = Engine.split(s, t.id);
+      ok(next, label + ': replay hit an illegal cut of ' + m.cut);
+      s = next;
+      continue;
+    }
+    const a = s.tiles.find((t) => t.v === m.a);
+    const b = s.tiles.find((t) => t.id !== (a && a.id) && t.v === m.b);
+    ok(a && b, label + ': replay lost a tile');
+    const next = Engine.merge(s, a.id, b.id, m.op);
+    ok(next, label + ': replay hit an illegal move ' + m.a + m.op + m.b);
+    s = next;
+  }
+  return s;
+}
+
 test('every level can be three-starred', () => {
   for (const l of Levels.LEVELS) {
     const sol = Engine.solve(Engine.newState(l), { useAll: true, twist: true, budget: 20000000 });
     ok(sol, l.id + ': no route hits the target using every tile with the twist held');
-    // Replay it through the real engine -- the solver could in principle
-    // agree with itself and still be wrong about the rules.
-    let s = Engine.newState(l);
-    for (const m of sol) {
-      const a = s.tiles.find((t) => t.v === m.a);
-      const b = s.tiles.find((t) => t.id !== (a && a.id) && t.v === m.b);
-      ok(a && b, l.id + ': replay lost a tile');
-      const next = Engine.merge(s, a.id, b.id, m.op);
-      ok(next, l.id + ': replay hit an illegal move ' + m.a + m.op + m.b);
-      s = next;
-    }
-    const st = Engine.status(s);
+    const st = Engine.status(replay(l, sol, l.id));
     ok(st.stars === 3, l.id + ': replay scored ' + st.stars + ' stars, not 3');
   }
 });
 
 test('every level has a low floor as well as a high ceiling', () => {
-  // Star 1 must be winnable WITHOUT spending every tile, otherwise the first
-  // star and the second are the same star and the ramp is a cliff.
+  // Star 1 must be winnable WITHOUT also collecting star 2, otherwise the two
+  // are the same star and the ramp is a cliff. Asked of the replayed BOARD
+  // rather than of the move count, because "used everything" stops meaning
+  // "one tile left" the moment a gate has two locks or a level hands out
+  // shears.
   for (const l of Levels.LEVELS) {
     const sol = Engine.solve(Engine.newState(l), { budget: 20000000 });
     ok(sol, l.id + ': cannot hit the target at all');
-    ok(sol.length < l.tiles.length - 1,
-       l.id + ': the only way to the target uses every tile — no easy first star');
+    const st = Engine.status(replay(l, sol, l.id));
+    ok(st.solved, l.id + ': the shortest route does not actually solve it');
+    ok(!st.usedAll,
+       l.id + ': the only way to the target uses every seed — no easy first star');
   }
 });
 

@@ -14,7 +14,8 @@ servers. The simplest deploy is "double-click the file."
 - **flapjack/** — themeable flappy clone; see `flapjack/concept.md` for the design.
 - **chicken/** — Logo for kids, with a chicken instead of a turtle; free draw
   plus a 20-level programming curriculum. See `chicken/README.md`.
-- **smoosh/** — math puzzle game: fuse number tiles to hit a target. See
+- **smoosh/** — math puzzle quest: fuse number seeds to hit a target and open
+  up Mossway Valley, twenty places across four regions. See
   `smoosh/concept.md` for the design and the research behind it.
 
 ## Adding a new game

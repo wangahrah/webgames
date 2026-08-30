@@ -19,6 +19,20 @@
 //           negative is a wrong turn, and forbidding it makes the greyed-out
 //           minus button teach something.
 //
+// Optional, and absent by default so every row above keeps working untouched.
+// This is how a new mechanic arrives: a field nothing else has to know about.
+//
+//   goals   [{value:a},{value:b}] — a gate with TWO locks, both of which must
+//           be showing on the bench at the same time. `goal` is the one-lock
+//           shorthand and stays the common case. Star 2 then means "one tile
+//           per lock", not "one tile".
+//   shears  how many Sap Shears this level grants: each one cuts a single even
+//           tile cleanly in half. Vine-collared tiles cannot be cut.
+//
+// The name here is the BOARD's name. What a kid actually reads over the bench
+// in quest mode is the node name from world.js, so a board can be re-dressed
+// as a gate, a bird or a shrine without this table changing at all.
+//
 // TARGET CHOICE IS NOT FREEHAND. Every target below was picked from the
 // intersection of two sets, computed by exhaustive search: values reachable by
 // SOME subset of the tiles (so star 1 is an easy win — the low floor) and
@@ -35,6 +49,24 @@ var Levels = (function () {
       tiles: [3, 4, 5],
       goal: { value: 12 },
       twist: { kind: 'banOp', op: '-' },
+    },
+    // ---- Home Clearing -----------------------------------------------------
+    // Three seeds, small targets, no mechanic but the fuse itself.
+    {
+      id: 'clearing-bird',
+      name: 'Berries for Hollowbeak',
+      hint: 'Three seeds. Make 14 — and for the last star, never once add.',
+      tiles: [7, 2, 4],
+      goal: { value: 14 },
+      twist: { kind: 'banOp', op: '+' },
+    },
+    {
+      id: 'clearing-step',
+      name: 'The Sunken Step',
+      hint: 'Somewhere in here something divides evenly. Find it.',
+      tiles: [9, 3, 4],
+      goal: { value: 12 },
+      twist: { kind: 'mustUse', op: '÷' },
     },
     {
       id: 'twenty-four',

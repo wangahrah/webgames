@@ -226,5 +226,102 @@ test('does not memo away a twist solution', () => {
   ok(sol.every((m) => m.op !== '+'));
 });
 
+console.log('two-lock gates');
+
+test('a gate with two locks needs both showing at once', () => {
+  const l = { tiles: [6, 9, 3], goals: [{ value: 6 }, { value: 12 }], twist: { kind: 'grow' } };
+  let s = Engine.newState(l);
+  ok(!Engine.status(s).solved, 'solved before anything was made');
+  s = Engine.merge(s, s.tiles[1].id, s.tiles[2].id, '+');   // 9 + 3 = 12
+  const st = Engine.status(s);
+  ok(st.solved, 'both locks were satisfied and it said no');
+  eq(st.winnerIds.length, 2, 'a two-lock gate reported one winner');
+  ok(st.usedAll, 'one tile per lock IS using everything');
+  eq(st.stars >= 2, true);
+});
+
+test('two locks cannot be satisfied by the same tile', () => {
+  const l = { tiles: [12, 5], goals: [{ value: 12 }, { value: 12 }] };
+  const s = Engine.newState(l);
+  ok(!Engine.status(s).solved, 'one 12 answered for two locks');
+});
+
+test('matching backtracks rather than grabbing greedily', () => {
+  // The greedy trap: the loose lock takes the tile the exact lock needed, and
+  // a solved board reads as unsolved. Order the goals so greed picks wrong.
+  const tiles = [{ id: 'a', v: 6 }, { id: 'b', v: 7 }];
+  const m = Engine.matchGoals([{ atLeast: 5 }, { value: 6 }], tiles);
+  ok(m, 'no assignment found where one plainly exists');
+  eq(m, ['b', 'a']);
+});
+
+test('the target strip names every lock', () => {
+  eq(Engine.goalsText(Engine.newState({ tiles: [1], goal: { value: 8 } })), '8');
+  const two = Engine.newState({ tiles: [1], goals: [{ value: 8 }, { atLeast: 20 }] });
+  ok(Engine.goalsText(two).indexOf('8') >= 0 && Engine.goalsText(two).indexOf('20') >= 0,
+     'a two-lock gate did not show both numbers');
+});
+
+console.log('the Sap Shears');
+
+test('an even seed halves, an odd one does not', () => {
+  const s = Engine.newState({ tiles: [12, 7, 5], goal: { value: 4 }, shears: 1 });
+  ok(Engine.canSplit(s, s.tiles[0].id).ok, '12 refused to halve');
+  eq(Engine.canSplit(s, s.tiles[1].id).why, 'not even');
+  const next = Engine.split(s, s.tiles[0].id);
+  ok(next, 'the cut returned nothing');
+  eq(next.tiles.map((t) => t.v), [6, 6, 7, 5], 'the halves are wrong or in the wrong place');
+  eq(next.shears, 0, 'the shears were not spent');
+  eq(s.tiles.map((t) => t.v), [12, 7, 5], 'the cut mutated the state it was given');
+});
+
+test('a cut seed forgets its expression', () => {
+  // Two halves of (4 + 8) are two 6s, not two copies of "4 + 8". Printing an
+  // expression that does not evaluate to the number above it is worse than
+  // printing nothing.
+  let s = Engine.newState({ tiles: [4, 8, 3], goal: { value: 6 }, shears: 1 });
+  s = Engine.merge(s, s.tiles[0].id, s.tiles[1].id, '+');
+  s = Engine.split(s, s.tiles[0].id);
+  const halves = s.tiles.filter((t) => t.v === 6);
+  eq(halves.length, 2);
+  for (const h of halves) { eq(h.expr, '6'); eq(h.leaf, true); }
+});
+
+test('vine-bound seeds cannot be cut, and neither can nothing', () => {
+  const s = Engine.newState({ tiles: [{ v: 12, collar: '×' }, 6, 5], goal: { value: 3 }, shears: 1 });
+  eq(Engine.canSplit(s, s.tiles[0].id).why, 'collar');
+  eq(Engine.split(s, s.tiles[0].id), null);
+  const none = Engine.newState({ tiles: [12, 6, 5], goal: { value: 3 } });
+  eq(Engine.canSplit(none, none.tiles[0].id).why, 'no shears');
+});
+
+test('cuts stay out of the move log, where the twists live', () => {
+  // A twist is a rule about OPERATORS. Feeding it a move with no operator is
+  // how you get a `grow` twist that can never be met for reasons nobody can
+  // see on screen.
+  let s = Engine.newState({ tiles: [10, 3, 4], goal: { value: 8 }, shears: 1,
+                            twist: { kind: 'grow' } });
+  s = Engine.split(s, s.tiles[0].id);
+  eq(s.log.length, 0, 'a cut was logged as a move');
+  eq(s.cuts.length, 1, 'the cut was not recorded anywhere');
+  s = Engine.merge(s, s.tiles[0].id, s.tiles[2].id, '+');   // 5 + 3 = 8
+  ok(Engine.twistMet(s.twist, s.log), 'a cut broke a twist it has no business judging');
+});
+
+test('a lone even seed is not stuck while shears remain', () => {
+  const s = Engine.newState({ tiles: [8], goal: { value: 4 }, shears: 1 });
+  ok(Engine.anyMoveLeft(s), 'called it stuck with a cut still available');
+  const spent = Engine.newState({ tiles: [8], goal: { value: 4 } });
+  ok(!Engine.anyMoveLeft(spent), 'found a move on a lone tile with no shears');
+});
+
+test('the solver knows how to use the shears', () => {
+  const s = Engine.newState({ tiles: [10, 3, 9], goal: { value: 8 }, shears: 1 });
+  const sol = Engine.solve(s, { budget: 500000 });
+  ok(sol, 'no route found to 8');
+  ok(sol.some((m) => m.cut !== undefined), 'solved 8 from 10, 3, 9 without cutting anything');
+});
+
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
