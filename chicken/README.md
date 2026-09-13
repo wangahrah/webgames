@@ -327,4 +327,10 @@ chicken/
 - [ ] Words Within Words: a taught word may hold a `repeat` in its body;
       calling the word twice still costs one statement each
 - [ ] The Whole Coop: gate, two keys, and a pond glide all compose in one
-      yard, and the par is reachable — the finale of the teaching order
+      yard,       and the par is reachable — the finale of the teaching order
+
+## Deployed
+
+Serves at https://chicken.wangahrah.com from the webgames clone on the
+avidya.io VPS (`~/webgames/chicken`, nginx web root). To update: `git push`,
+then `git -C ~/webgames pull` on the box — static files, so no restart.
