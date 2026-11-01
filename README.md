@@ -20,10 +20,10 @@ servers. The simplest deploy is "double-click the file."
 
 ## kitchentablecode.com
 
-`kitchentable/` is the landing page for kitchentablecode.com. nginx serves it
-at the site root, and only the games listed in its nginx config are reachable
-(currently `/chicken/`). To publish another game, add a card to
-`kitchentable/index.html` *and* a `location` block on the VPS.
+Some of these games are published on kitchentablecode.com, which is managed
+from its own repo, [wangahrah/kitchentablecode](https://github.com/wangahrah/kitchentablecode).
+That repo pins each published game to a specific commit here, so work on
+`main` doesn't go public until it's bumped there.
 
 ## Adding a new game
 
