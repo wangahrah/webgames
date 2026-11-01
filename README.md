@@ -18,6 +18,13 @@ servers. The simplest deploy is "double-click the file."
   up Mossway Valley, twenty places across four regions. See
   `smoosh/concept.md` for the design and the research behind it.
 
+## kitchentablecode.com
+
+`kitchentable/` is the landing page for kitchentablecode.com. nginx serves it
+at the site root, and only the games listed in its nginx config are reachable
+(currently `/chicken/`). To publish another game, add a card to
+`kitchentable/index.html` *and* a `location` block on the VPS.
+
 ## Adding a new game
 
 1. Make a new subdirectory: `mkdir mygame && cd mygame`
